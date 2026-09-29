@@ -1,0 +1,6 @@
+{
+  "name": "Valam - Last-Mile Farmer Support Navigator",
+  "description": "An intelligent civic-tech farmer support navigator that turns complex agricultural eligibility and documentation rules into clear, personalized pathways.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
