@@ -1,20 +1,17 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   UserPlus,
   Sparkles,
   CheckCircle2,
   Copy,
-  MapPin,
-  FileCheck2,
   ShieldCheck,
-  CreditCard,
-  Building,
   ArrowRight
 } from 'lucide-react';
 import { SYSTEM_DOCUMENTS } from '../data/mockData';
 import { api } from '../services/api';
-import { FarmerCategory, FarmerProfile, IrrigationType, Language } from '../types';
+import { deriveFarmerCategory } from '../utils/farmerUtils';
+import { FarmerDocumentStatus, FarmerProfile, IrrigationType, Language } from '../types';
 
 interface CreateFarmerModalProps {
   isOpen: boolean;
@@ -23,35 +20,33 @@ interface CreateFarmerModalProps {
   language: Language;
 }
 
+const generateRandomId = () => {
+  const randomDigits = Math.floor(1000 + Math.random() * 9000);
+  return `VLM-TN-${new Date().getFullYear()}-${randomDigits}`;
+};
+
 export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
   isOpen,
   onClose,
   onFarmerCreated,
   language
 }) => {
-  if (!isOpen) return null;
   const isTa = language === 'ta';
 
-  // Generate a realistic default ID
-  const generateRandomId = () => {
-    const randomDigits = Math.floor(1000 + Math.random() * 9000);
-    return `VLM-TN-${new Date().getFullYear()}-${randomDigits}`;
-  };
-
   // Form State
-  const [userId, setUserId] = useState(generateRandomId());
+  const [userId, setUserId] = useState(generateRandomId);
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('+91 ');
-  const [state, setState] = useState('Tamil Nadu');
+  const [phone, setPhone] = useState('+91 98400 12345');
+  const [state] = useState('Tamil Nadu');
   const [district, setDistrict] = useState('Thanjavur');
-  const [taluk, setTaluk] = useState('');
+  const [taluk] = useState('');
   const [village, setVillage] = useState('');
   const [landSizeAcres, setLandSizeAcres] = useState<number>(2.0);
   const [crop, setCrop] = useState('Rice');
   const [irrigationType, setIrrigationType] = useState<IrrigationType>('Borewell / Tube Well');
-  const [hasBankAccount, setHasBankAccount] = useState(true);
-  const [bankName, setBankName] = useState('Canara Bank');
-  const [hasAadhaarLinkedBank, setHasAadhaarLinkedBank] = useState(true);
+  const [hasBankAccount] = useState(true);
+  const [bankName] = useState('Canara Bank');
+  const [hasAadhaarLinkedBank] = useState(true);
 
   // Selected Documents
   const [availableDocIds, setAvailableDocIds] = useState<string[]>([
@@ -61,16 +56,20 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
 
   // Submission Status
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [createdProfile, setCreatedProfile] = useState<FarmerProfile | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Derive Category from land size
-  const getCategory = (acres: number): FarmerCategory => {
-    if (acres < 2.5) return 'Marginal (<2.5 acres)';
-    if (acres <= 5.0) return 'Small (2.5 - 5.0 acres)';
-    if (acres <= 10.0) return 'Medium (5.0 - 10.0 acres)';
-    return 'Large (>10.0 acres)';
-  };
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
 
   const handleToggleDoc = (docId: string) => {
     setAvailableDocIds((prev) =>
@@ -79,7 +78,9 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
   };
 
   const handleCopyId = (text: string) => {
-    navigator.clipboard.writeText(text);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -89,17 +90,19 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
     if (!name.trim()) return;
 
     setIsSubmitting(true);
+    setErrorMsg(null);
 
-    const documents = SYSTEM_DOCUMENTS.map((doc) => {
+    const documents: FarmerDocumentStatus[] = SYSTEM_DOCUMENTS.map((doc) => {
       const isAvailable = availableDocIds.includes(doc.id);
       return {
         documentId: doc.id,
         available: isAvailable,
-        verifiedStatus: (isAvailable ? 'verified' : 'missing') as any,
+        verifiedStatus: isAvailable ? 'verified' : 'missing',
         documentNumber: isAvailable ? `DOC-${Math.floor(10000 + Math.random() * 90000)}` : undefined
       };
     });
 
+    const sanitizedAcres = Math.max(0.1, Number(landSizeAcres) || 1.0);
     const newFarmer: FarmerProfile = {
       id: userId.trim() || generateRandomId(),
       name: name.trim(),
@@ -108,9 +111,9 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
       district: district.trim() || 'Thanjavur',
       taluk: taluk.trim() || 'Taluk Centre',
       village: village.trim() || 'Revenue Village',
-      landSizeAcres: Number(landSizeAcres) || 1.0,
+      landSizeAcres: sanitizedAcres,
       crop: crop || 'Rice',
-      category: getCategory(Number(landSizeAcres) || 1.0),
+      category: deriveFarmerCategory(sanitizedAcres),
       irrigationType,
       hasBankAccount,
       bankName: hasBankAccount ? bankName : undefined,
@@ -123,29 +126,31 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
       setCreatedProfile(saved);
       onFarmerCreated(saved);
     } catch (err) {
-      console.error(err);
-      // Fallback local save
-      setCreatedProfile(newFarmer);
-      onFarmerCreated(newFarmer);
+      setErrorMsg(err instanceof Error ? err.message : 'Unable to save farmer profile');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-farmer-modal-title"
+    >
       <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-[#E5E7EB]">
         {/* Header */}
         <div className="p-5 border-b border-[#E5E7EB] flex items-center justify-between bg-[#F8FAF9]">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-[#1B4D2E] text-white flex items-center justify-center font-bold">
-              <UserPlus className="w-5 h-5 text-[#86EFAC]" />
+              <UserPlus className="w-5 h-5 text-[#86EFAC]" aria-hidden="true" />
             </div>
             <div>
-              <h2 className="font-display font-extrabold text-lg text-[#111827]">
+              <h2 id="create-farmer-modal-title" className="font-display font-extrabold text-lg text-[#111827]">
                 {isTa ? 'புதிய விவசாயி பயனர் ஐடி பதிவு' : 'Create New Farmer User ID'}
               </h2>
-              <p className="text-xs text-[#6B7280]">
+              <p className="text-xs text-[#4B5563]">
                 {isTa
                   ? 'புதிய விவசாயி விவரங்களை உள்ளிட்டு தனித்துவமான வளம் பயனர் ஐடியை உருவாக்குக.'
                   : 'Register a new farmer profile with a personalized ID and test real-time eligibility.'}
@@ -153,10 +158,12 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[#6B7280] hover:bg-[#E5E7EB] transition-colors"
+            aria-label={isTa ? 'சாளரத்தை மூடுக' : 'Close dialog'}
+            className="p-1.5 rounded-lg text-[#4B5563] hover:bg-[#E5E7EB] transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -164,9 +171,9 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
         {createdProfile ? (
           // Success State: Digital Farmer Card
           <div className="p-6 space-y-6">
-            <div className="p-5 rounded-2xl bg-[#F0FDF4] border-2 border-[#86EFAC] text-center space-y-3">
+            <div className="p-5 rounded-2xl bg-[#F0FDF4] border-2 border-[#86EFAC] text-center space-y-3" role="status" aria-live="polite">
               <div className="w-12 h-12 rounded-full bg-[#DCFCE7] text-[#15803D] flex items-center justify-center mx-auto">
-                <CheckCircle2 className="w-7 h-7" />
+                <CheckCircle2 className="w-7 h-7" aria-hidden="true" />
               </div>
               <h3 className="font-display font-bold text-lg text-[#14532D]">
                 {isTa ? 'விவசாயி ஐடி வெற்றிகரமாக உருவாக்கப்பட்டது!' : 'Farmer User ID Created Successfully!'}
@@ -181,7 +188,7 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
             {/* Visual Digital Farmer ID Card */}
             <div className="p-6 rounded-2xl bg-gradient-to-br from-[#183822] to-[#122A1A] text-white shadow-lg relative overflow-hidden">
               <div className="absolute top-0 right-0 p-8 opacity-10">
-                <ShieldCheck className="w-36 h-36" />
+                <ShieldCheck className="w-36 h-36" aria-hidden="true" />
               </div>
 
               <div className="flex items-center justify-between mb-4 border-b border-white/20 pb-3">
@@ -207,11 +214,13 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="font-mono font-bold text-sm text-[#FDE047]">{createdProfile.id}</span>
                     <button
+                      type="button"
                       onClick={() => handleCopyId(createdProfile.id)}
-                      className="p-1 rounded bg-white/10 hover:bg-white/20 text-white transition-colors"
+                      aria-label="Copy Farmer User ID"
+                      className="p-1 rounded bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
                       title="Copy ID"
                     >
-                      <Copy className="w-3.5 h-3.5" />
+                      <Copy className="w-3.5 h-3.5" aria-hidden="true" />
                     </button>
                     {copied && <span className="text-[10px] text-[#34D399]">Copied!</span>}
                   </div>
@@ -241,47 +250,56 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
             {/* Action Buttons */}
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
+                type="button"
                 onClick={onClose}
                 className="px-5 py-2.5 text-xs font-bold text-white bg-[#1B4D2E] hover:bg-[#143B23] rounded-xl transition-all flex items-center gap-2 shadow-xs cursor-pointer"
               >
                 <span>{isTa ? 'வழிகாட்டியைத் தொடங்குக' : 'Start with this Farmer ID'}</span>
-                <ArrowRight className="w-4 h-4" />
+                <ArrowRight className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
           </div>
         ) : (
           // Form State
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            {errorMsg && (
+              <div role="alert" className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 font-semibold">
+                {errorMsg}
+              </div>
+            )}
+
             {/* Step 1: User ID Field */}
             <div className="p-4 rounded-xl bg-[#F8FAF9] border border-[#D7E3D9] space-y-2">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-[#14381E] uppercase tracking-wide">
+                <label htmlFor="create-farmer-id" className="block text-xs font-bold text-[#14381E] uppercase tracking-wide">
                   {isTa ? 'பயனர் அடையாள எண் (User ID)' : 'Farmer User ID'}
                 </label>
                 <button
                   type="button"
                   onClick={() => setUserId(generateRandomId())}
-                  className="text-[11px] font-semibold text-[#1B4D2E] hover:underline flex items-center gap-1"
+                  className="text-[11px] font-semibold text-[#1B4D2E] hover:underline flex items-center gap-1 cursor-pointer"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>{isTa ? 'புதிய ஐடி உருவாக்குக' : 'Auto-Generate ID'}</span>
                 </button>
               </div>
 
               <div className="flex items-center gap-2">
                 <input
+                  id="create-farmer-id"
                   type="text"
                   value={userId}
                   onChange={(e) => setUserId(e.target.value)}
+                  pattern="[A-Za-z0-9_-]{2,64}"
                   placeholder="e.g. VLM-TN-2026-8941"
                   className="flex-1 p-2.5 bg-white border border-[#D1D5DB] rounded-lg text-xs font-mono font-bold text-[#111827] focus:outline-none focus:ring-1 focus:ring-[#1B4D2E]"
                   required
                 />
               </div>
-              <p className="text-[11px] text-[#6B7280]">
+              <p className="text-[11px] text-[#4B5563]">
                 {isTa
                   ? 'நீங்கள் விரும்பும் தனிப்பயன் ஐடியை வழங்கலாம் அல்லது தானாக உருவாக்கப்பட்ட எண்ணைப் பயன்படுத்தலாம்.'
-                  : 'Provide a custom identifier (e.g. your Uzhavan ID or national ID token) or keep the auto-generated ID.'}
+                  : 'Provide a custom identifier (letters, numbers, hyphens, underscores) or keep the auto-generated ID.'}
               </p>
             </div>
 
@@ -293,10 +311,11 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                 <div>
-                  <label className="block font-semibold text-[#374151] mb-1">
+                  <label htmlFor="create-farmer-name" className="block font-semibold text-[#374151] mb-1">
                     {isTa ? 'முழுப் பெயர் *' : 'Farmer Full Name *'}
                   </label>
                   <input
+                    id="create-farmer-name"
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -307,10 +326,11 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#374151] mb-1">
+                  <label htmlFor="create-farmer-phone" className="block font-semibold text-[#374151] mb-1">
                     {isTa ? 'கைபேசி எண்' : 'Mobile Number'}
                   </label>
                   <input
+                    id="create-farmer-phone"
                     type="text"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
@@ -320,10 +340,11 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#374151] mb-1">
+                  <label htmlFor="create-farmer-district" className="block font-semibold text-[#374151] mb-1">
                     {isTa ? 'மாவட்டம்' : 'District'}
                   </label>
                   <select
+                    id="create-farmer-district"
                     value={district}
                     onChange={(e) => setDistrict(e.target.value)}
                     className="w-full p-2.5 bg-[#FBFBFA] border border-[#D1D5DB] rounded-lg text-xs font-medium text-[#111827]"
@@ -340,10 +361,11 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#374151] mb-1">
+                  <label htmlFor="create-farmer-village" className="block font-semibold text-[#374151] mb-1">
                     {isTa ? 'கிராமம் / வருவாய் கிராமம்' : 'Village'}
                   </label>
                   <input
+                    id="create-farmer-village"
                     type="text"
                     value={village}
                     onChange={(e) => setVillage(e.target.value)}
@@ -362,10 +384,11 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                 <div>
-                  <label className="block font-semibold text-[#374151] mb-1">
+                  <label htmlFor="create-farmer-land" className="block font-semibold text-[#374151] mb-1">
                     {isTa ? 'நிலப் பரப்பளவு (ஏக்கர்)' : 'Land Size (Acres)'}
                   </label>
                   <input
+                    id="create-farmer-land"
                     type="number"
                     step="0.1"
                     min="0.1"
@@ -376,15 +399,16 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
                     required
                   />
                   <span className="text-[10px] text-[#1B4D2E] font-medium mt-1 block">
-                    Category: {getCategory(landSizeAcres)}
+                    Category: {deriveFarmerCategory(landSizeAcres)}
                   </span>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#374151] mb-1">
+                  <label htmlFor="create-farmer-crop" className="block font-semibold text-[#374151] mb-1">
                     {isTa ? 'பயிர்' : 'Primary Crop'}
                   </label>
                   <select
+                    id="create-farmer-crop"
                     value={crop}
                     onChange={(e) => setCrop(e.target.value)}
                     className="w-full p-2.5 bg-[#FBFBFA] border border-[#D1D5DB] rounded-lg text-xs font-medium text-[#111827]"
@@ -401,12 +425,13 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-[#374151] mb-1">
+                  <label htmlFor="create-farmer-irrigation" className="block font-semibold text-[#374151] mb-1">
                     {isTa ? 'பாசன வகை' : 'Irrigation Type'}
                   </label>
                   <select
+                    id="create-farmer-irrigation"
                     value={irrigationType}
-                    onChange={(e) => setIrrigationType(e.target.value as any)}
+                    onChange={(e) => setIrrigationType(e.target.value as IrrigationType)}
                     className="w-full p-2.5 bg-[#FBFBFA] border border-[#D1D5DB] rounded-lg text-xs font-medium text-[#111827]"
                   >
                     <option value="Borewell / Tube Well">Borewell / Tube Well</option>
@@ -425,7 +450,7 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
                 <h3 className="font-display font-bold text-sm text-[#111827]">
                   {isTa ? '3. தற்போது கையில் உள்ள ஆவணங்கள்' : '3. Documents on Hand'}
                 </h3>
-                <span className="text-[11px] text-[#6B7280]">
+                <span className="text-[11px] text-[#4B5563]">
                   {availableDocIds.length} of {SYSTEM_DOCUMENTS.length} checked
                 </span>
               </div>
@@ -434,9 +459,8 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
                 {SYSTEM_DOCUMENTS.map((doc) => {
                   const isChecked = availableDocIds.includes(doc.id);
                   return (
-                    <div
+                    <label
                       key={doc.id}
-                      onClick={() => handleToggleDoc(doc.id)}
                       className={`p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-between ${
                         isChecked
                           ? 'border-emerald-300 bg-emerald-50 text-emerald-950 font-semibold'
@@ -447,10 +471,10 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
                       <input
                         type="checkbox"
                         checked={isChecked}
-                        onChange={() => {}}
-                        className="rounded text-[#1B4D2E] focus:ring-0"
+                        onChange={() => handleToggleDoc(doc.id)}
+                        className="rounded text-[#1B4D2E] focus:ring-[#1B4D2E]"
                       />
-                    </div>
+                    </label>
                   );
                 })}
               </div>
@@ -461,7 +485,7 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-xs font-semibold text-[#6B7280] hover:text-[#111827] transition-colors"
+                className="px-4 py-2 text-xs font-semibold text-[#4B5563] hover:text-[#111827] transition-colors cursor-pointer"
               >
                 {isTa ? 'ரத்து செய்க' : 'Cancel'}
               </button>
@@ -471,7 +495,7 @@ export const CreateFarmerModal: React.FC<CreateFarmerModalProps> = ({
                 disabled={isSubmitting || !name.trim()}
                 className="px-6 py-2.5 text-xs font-bold text-white bg-[#1B4D2E] hover:bg-[#143B23] disabled:opacity-50 rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
               >
-                <UserPlus className="w-4 h-4" />
+                <UserPlus className="w-4 h-4" aria-hidden="true" />
                 <span>{isSubmitting ? (isTa ? 'பதிவாகிறது...' : 'Creating...') : (isTa ? 'பயனர் ஐடி உருவாக்குக' : 'Create Farmer ID & Proceed')}</span>
               </button>
             </div>

@@ -2,17 +2,15 @@ import React from 'react';
 import {
   Compass,
   Phone,
-  ShieldCheck,
   FileCheck2,
   Users,
   CheckCircle2,
   ArrowRight,
   Sprout,
   AlertTriangle,
-  Scale,
-  Sparkles,
-  HelpCircle
+  Scale
 } from 'lucide-react';
+import heroFarmerImg from '../assets/images/hero_farmer_field_1790664459033.jpg';
 import { Language } from '../types';
 
 interface LandingPageProps {
@@ -32,7 +30,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
             {/* Left Column: Proposition */}
             <div className="lg:col-span-7 space-y-6">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#EAF5EC] border border-[#CDE8D2] text-[#1B4D2E] text-xs font-semibold">
-                <Sprout className="w-3.5 h-3.5" />
+                <Sprout className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Track 1 · Problem 4 · The Last-Mile Farmer Support Gap</span>
               </div>
 
@@ -51,41 +49,44 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-3 pt-2">
                 <button
+                  type="button"
                   onClick={() => onNavigate('navigator')}
                   className="px-6 py-3 text-sm font-bold text-white bg-[#1B4D2E] hover:bg-[#143B23] rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer group"
                 >
                   <span>{isTa ? 'எனக்கான உதவியை காண்க' : 'Find My Support'}</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" aria-hidden="true" />
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => onNavigate('phone-simulator')}
                   className="px-5 py-3 text-sm font-semibold text-[#1F2937] bg-white hover:bg-[#F9FAFB] border border-[#D1D5DB] rounded-xl transition-all flex items-center gap-2 cursor-pointer"
                 >
-                  <Phone className="w-4 h-4 text-[#1B4D2E]" />
+                  <Phone className="w-4 h-4 text-[#1B4D2E]" aria-hidden="true" />
                   <span>{isTa ? 'பட்டன் போன் சிமுலேட்டர்' : 'Try Phone Simulator'}</span>
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => onNavigate('assisted-mode')}
-                  className="px-4 py-3 text-sm font-semibold text-[#4B5563] hover:text-[#111827] transition-colors"
+                  className="px-4 py-3 text-sm font-semibold text-[#4B5563] hover:text-[#111827] transition-colors cursor-pointer"
                 >
                   {isTa ? 'CSC மையம் பயன்முறை →' : 'Assisted Mode (CSC) →'}
                 </button>
               </div>
 
               {/* Trust Signal / Principles */}
-              <div className="pt-4 border-t border-[#E5E7EB] flex flex-wrap items-center gap-6 text-xs text-[#6B7280]">
+              <div className="pt-4 border-t border-[#E5E7EB] flex flex-wrap items-center gap-6 text-xs text-[#4B5563]">
                 <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+                  <CheckCircle2 className="w-4 h-4 text-[#10B981]" aria-hidden="true" />
                   <span>Deterministic Rule Engine</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+                  <CheckCircle2 className="w-4 h-4 text-[#10B981]" aria-hidden="true" />
                   <span>Explainable Criteria</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-[#10B981]" />
+                  <CheckCircle2 className="w-4 h-4 text-[#10B981]" aria-hidden="true" />
                   <span>Tamil & English Native</span>
                 </div>
               </div>
@@ -93,15 +94,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
 
             {/* Right Column: Hero Visual Asset */}
             <div className="lg:col-span-5 relative">
-              <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-[#E5E7EB] bg-[#E5E7EB] aspect-[4/3]">
+              <div className="relative rounded-2xl overflow-hidden shadow-2xl border border-[#E5E7EB] bg-[#183822] aspect-[4/3]">
                 <img
-                  src="/src/assets/images/hero_farmer_field_1790664459033.jpg"
+                  src={heroFarmerImg}
                   alt="Farmer standing proudly near agricultural fields in Tamil Nadu at dawn"
                   className="w-full h-full object-cover"
                   loading="eager"
-                  referrerPolicy="no-referrer"
                   onError={(e) => {
-                    // Fallback container if image fails
                     e.currentTarget.style.display = 'none';
                   }}
                 />
@@ -110,7 +109,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
                     Thanjavur Delta Region
                   </div>
                   <h3 className="font-display font-bold text-lg text-white">
-                    "I just want to know: am I eligible for drip irrigation, and which paper is missing?"
+                    &ldquo;I just want to know: am I eligible for drip irrigation, and which paper is missing?&rdquo;
                   </h3>
                   <p className="text-xs text-[#E2E8F0] mt-1">
                     — Ravi Kumar, 2.4 acres paddy farmer
@@ -122,7 +121,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
         </div>
       </section>
 
-      {/* 2. THE PROBLEM & VALAM MECHANISM (ARGUMENT FLOW) */}
+      {/* 2. THE PROBLEM & VALAM MECHANISM */}
       <section className="bg-white py-16 border-y border-[#E5E7EB]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-14">
@@ -133,18 +132,17 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
               From Fragmented Portals to a Personalized Action Pathway
             </h2>
             <p className="text-sm sm:text-base text-[#4B5563] mt-3">
-              Don’t force farmers to navigate bureaucratic jargon across 14 different department portals.
+              Don&rsquo;t force farmers to navigate bureaucratic jargon across 14 different department portals.
               Let them describe their problem, and let Valam engineer the pathway.
             </p>
           </div>
 
-          {/* 3-Step Transformation Visual */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative">
             {/* Step 1: The Problem */}
             <div className="p-6 rounded-2xl bg-[#FFFBF8] border border-[#FED7AA]/60 flex flex-col justify-between">
               <div>
                 <div className="w-10 h-10 rounded-xl bg-[#FFEDD5] text-[#C2410C] flex items-center justify-center font-bold mb-4">
-                  <AlertTriangle className="w-5 h-5" />
+                  <AlertTriangle className="w-5 h-5" aria-hidden="true" />
                 </div>
                 <span className="text-xs uppercase font-bold text-[#C2410C] tracking-wider">
                   The Status Quo
@@ -152,7 +150,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
                 <h3 className="font-display font-bold text-lg text-[#111827] mt-1 mb-2">
                   Fragmented Information
                 </h3>
-                <p className="text-xs sm:text-sm text-[#6B7280] leading-relaxed">
+                <p className="text-xs sm:text-sm text-[#4B5563] leading-relaxed">
                   Subsidies exist for drip, insurance, and solar pumps, but eligibility circulars are buried in PDFs with technical land ceilings and unstated document dependencies.
                 </p>
               </div>
@@ -165,7 +163,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
             <div className="p-6 rounded-2xl bg-[#F4F9F5] border border-[#BBF7D0] flex flex-col justify-between ring-2 ring-[#1B4D2E]/20">
               <div>
                 <div className="w-10 h-10 rounded-xl bg-[#DCFCE7] text-[#166534] flex items-center justify-center font-bold mb-4">
-                  <Compass className="w-5 h-5" />
+                  <Compass className="w-5 h-5" aria-hidden="true" />
                 </div>
                 <span className="text-xs uppercase font-bold text-[#166534] tracking-wider">
                   Valam Engine
@@ -186,7 +184,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
             <div className="p-6 rounded-2xl bg-[#F0FDF4] border border-[#86EFAC] flex flex-col justify-between">
               <div>
                 <div className="w-10 h-10 rounded-xl bg-[#DCFCE7] text-[#15803D] flex items-center justify-center font-bold mb-4">
-                  <CheckCircle2 className="w-5 h-5" />
+                  <CheckCircle2 className="w-5 h-5" aria-hidden="true" />
                 </div>
                 <span className="text-xs uppercase font-bold text-[#15803D] tracking-wider">
                   The Outcome
@@ -210,7 +208,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-14">
           <span className="text-xs uppercase tracking-wider font-bold text-[#1B4D2E]">
-            Built For Real Hackathon Criteria
+            Architecture Pillars
           </span>
           <h2 className="font-display font-extrabold text-3xl sm:text-4xl text-[#111827] mt-2">
             Why Valam Breaks the Last-Mile Gap
@@ -222,19 +220,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
           <div className="p-6 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-[#EAF5EC] text-[#1B4D2E] flex items-center justify-center font-bold">
-                <Scale className="w-5 h-5" />
+                <Scale className="w-5 h-5" aria-hidden="true" />
               </div>
               <div>
                 <h3 className="font-display font-bold text-lg text-[#111827]">
                   1. Zero Black-Box Decisions
                 </h3>
-                <span className="text-xs text-[#6B7280]">
-                  30% Weight: Eligibility Matching Accuracy
+                <span className="text-xs text-[#4B5563]">
+                  Deterministic Eligibility Rule Engine
                 </span>
               </div>
             </div>
             <p className="text-xs sm:text-sm text-[#4B5563] leading-relaxed mb-4">
-              We never use an LLM as the final authority on eligibility. Valam's deterministic rule engine compares the farmer's landholding, notified crop, and location against statutory gazettes. Every decision lists the exact passed and failed conditions.
+              We never use an LLM as the final authority on eligibility. Valam&rsquo;s deterministic rule engine compares the farmer&rsquo;s landholding, notified crop, and location against statutory gazettes. Every decision lists the exact passed and failed conditions.
             </p>
             <div className="bg-[#F9FAFB] p-3 rounded-lg border border-[#E5E7EB] text-xs font-mono text-[#374151]">
               ✓ Location: Thanjavur (Operational Zone)<br />
@@ -248,13 +246,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
           <div className="p-6 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-[#EAF5EC] text-[#1B4D2E] flex items-center justify-center font-bold">
-                <FileCheck2 className="w-5 h-5" />
+                <FileCheck2 className="w-5 h-5" aria-hidden="true" />
               </div>
               <div>
                 <h3 className="font-display font-bold text-lg text-[#111827]">
                   2. Document Readiness Engine
                 </h3>
-                <span className="text-xs text-[#6B7280]">
+                <span className="text-xs text-[#4B5563]">
                   Eliminating the #1 reason for scheme rejection
                 </span>
               </div>
@@ -271,14 +269,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
           <div className="p-6 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-[#EAF5EC] text-[#1B4D2E] flex items-center justify-center font-bold">
-                <Phone className="w-5 h-5" />
+                <Phone className="w-5 h-5" aria-hidden="true" />
               </div>
               <div>
                 <h3 className="font-display font-bold text-lg text-[#111827]">
                   3. Button-Phone & USSD Simulation
                 </h3>
-                <span className="text-xs text-[#6B7280]">
-                  20% Weight: Innovation & Originality
+                <span className="text-xs text-[#4B5563]">
+                  Zero-Broadband Last-Mile Delivery
                 </span>
               </div>
             </div>
@@ -286,8 +284,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
               Over 50% of marginal farmers rely on basic keypad devices without broadband or touchscreens. Valam includes a dedicated feature-phone simulator with realistic numeric keypad, audio IVR prompts in Tamil and English, and actionable SMS checklists.
             </p>
             <button
+              type="button"
               onClick={() => onNavigate('phone-simulator')}
-              className="text-xs font-bold text-[#1B4D2E] hover:underline flex items-center gap-1"
+              className="text-xs font-bold text-[#1B4D2E] hover:underline flex items-center gap-1 cursor-pointer"
             >
               <span>Test the Phone Simulator in Browser →</span>
             </button>
@@ -297,23 +296,24 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
           <div className="p-6 rounded-2xl bg-white border border-[#E5E7EB] shadow-xs">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl bg-[#EAF5EC] text-[#1B4D2E] flex items-center justify-center font-bold">
-                <Users className="w-5 h-5" />
+                <Users className="w-5 h-5" aria-hidden="true" />
               </div>
               <div>
                 <h3 className="font-display font-bold text-lg text-[#111827]">
                   4. Assisted Mode for Extension Workers
                 </h3>
-                <span className="text-xs text-[#6B7280]">
+                <span className="text-xs text-[#4B5563]">
                   Equipping CSCs, VLEs, and FPO village agents
                 </span>
               </div>
             </div>
             <p className="text-xs sm:text-sm text-[#4B5563] leading-relaxed mb-4">
-              Volunteers and CSC operators can run high-speed intakes for farmers who cannot use digital devices. Instantly generate printable "Farmer Assistance Dockets" with unique tracking tokens and clear checklist items.
+              Volunteers and CSC operators can run high-speed intakes for farmers who cannot use digital devices. Instantly generate printable &ldquo;Farmer Assistance Dockets&rdquo; with unique tracking tokens and clear checklist items.
             </p>
             <button
+              type="button"
               onClick={() => onNavigate('assisted-mode')}
-              className="text-xs font-bold text-[#1B4D2E] hover:underline flex items-center gap-1"
+              className="text-xs font-bold text-[#1B4D2E] hover:underline flex items-center gap-1 cursor-pointer"
             >
               <span>Open Assisted Mode Portal →</span>
             </button>
@@ -332,13 +332,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
               <h2 className="font-display font-extrabold text-2xl sm:text-3xl text-[#111827] mt-1">
                 Explore Pre-Built Farmer Scenarios
               </h2>
-              <p className="text-xs sm:text-sm text-[#6B7280] mt-1">
+              <p className="text-xs sm:text-sm text-[#4B5563] mt-1">
                 Every scenario exercises different logical branches of the Valam engine.
               </p>
             </div>
             <button
+              type="button"
               onClick={() => onNavigate('navigator')}
-              className="px-4 py-2 text-xs font-semibold text-white bg-[#1B4D2E] hover:bg-[#143B23] rounded-lg transition-colors shrink-0"
+              className="px-4 py-2 text-xs font-semibold text-white bg-[#1B4D2E] hover:bg-[#143B23] rounded-lg transition-colors shrink-0 cursor-pointer"
             >
               {isTa ? 'வழிகாட்டியைத் தொடங்குக' : 'Open Need Navigator'}
             </button>
@@ -354,7 +355,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
                 <h4 className="font-display font-bold text-base text-[#111827] mt-2 mb-1">
                   Ravi Kumar (2.4 Acres)
                 </h4>
-                <div className="text-xs text-[#6B7280] mb-3">
+                <div className="text-xs text-[#4B5563] mb-3">
                   Thanjavur · Rice · Needs Irrigation Support
                 </div>
                 <p className="text-xs text-[#4B5563] leading-relaxed">
@@ -375,7 +376,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
                 <h4 className="font-display font-bold text-base text-[#111827] mt-2 mb-1">
                   Meenakshi Sundaram (3.5 Acres)
                 </h4>
-                <div className="text-xs text-[#6B7280] mb-3">
+                <div className="text-xs text-[#4B5563] mb-3">
                   Madurai · Cotton · Needs Crop Insurance
                 </div>
                 <p className="text-xs text-[#4B5563] leading-relaxed">
@@ -396,7 +397,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
                 <h4 className="font-display font-bold text-base text-[#111827] mt-2 mb-1">
                   Anand Verma (14.0 Acres)
                 </h4>
-                <div className="text-xs text-[#6B7280] mb-3">
+                <div className="text-xs text-[#4B5563] mb-3">
                   Dharmapuri · Sugarcane · Large Farmer
                 </div>
                 <p className="text-xs text-[#4B5563] leading-relaxed">
@@ -427,12 +428,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate, language }
           </div>
           <div className="flex flex-wrap items-center gap-3 shrink-0">
             <button
+              type="button"
               onClick={() => onNavigate('navigator')}
               className="px-6 py-3 text-xs sm:text-sm font-bold text-[#14381E] bg-[#86EFAC] hover:bg-[#6EE7B7] rounded-xl transition-all shadow-md cursor-pointer"
             >
               {isTa ? 'வழிகாட்டியைத் தொடங்குக' : 'Launch Need Navigator'}
             </button>
             <button
+              type="button"
               onClick={() => onNavigate('phone-simulator')}
               className="px-5 py-3 text-xs sm:text-sm font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl transition-colors cursor-pointer"
             >

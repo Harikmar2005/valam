@@ -138,7 +138,7 @@ export const Footer: React.FC<FooterProps> = ({ language, onNavigate }) => {
         </div>
 
         {/* Bottom Bar */}
-        <div className="pt-6 border-t border-[#2D3748] flex flex-col sm:flex-row items-center justify-between text-xs text-[#6B7280] gap-3">
+        <div className="pt-6 border-t border-[#2D3748] flex flex-col sm:flex-row items-center justify-between text-xs text-[#9CA3AF] gap-3">
           <div>
             © 2026 Valam Navigator. Designed for the Last-Mile Farmer Support Gap.
           </div>

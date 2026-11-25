@@ -1,51 +1,76 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Users,
   Search,
-  CheckCircle2,
-  AlertTriangle,
   Printer,
   FileText,
   UserPlus,
-  ArrowRight,
-  ShieldCheck,
-  Building,
-  MapPin,
-  Clock,
-  Sparkles
+  Building
 } from 'lucide-react';
 import { DEMO_FARMERS, SUPPORT_PROGRAMS } from '../data/mockData';
 import { checkEligibility } from '../services/eligibilityEngine';
 import { generatePersonalizedPathway } from '../services/pathwayEngine';
-import { FarmerProfile, Language, SupportProgram } from '../types';
+import {
+  EligibilityResult,
+  FarmerProfile,
+  Language,
+  PersonalizedPathway,
+  SupportProgram
+} from '../types';
 
 interface AssistedModePageProps {
   language: Language;
+  farmers?: FarmerProfile[];
   onOpenCreateModal?: () => void;
 }
 
-export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, onOpenCreateModal }) => {
+interface AssistedDocket {
+  docketId: string;
+  farmer: FarmerProfile;
+  program: SupportProgram;
+  eligibility: EligibilityResult;
+  pathway: PersonalizedPathway;
+  operator: {
+    centreName: string;
+    operatorName: string;
+    block: string;
+  };
+  issuedAt: string;
+}
+
+export const AssistedModePage: React.FC<AssistedModePageProps> = ({
+  language,
+  farmers = DEMO_FARMERS,
+  onOpenCreateModal
+}) => {
   const isTa = language === 'ta';
 
-  // State
-  const [farmersList, setFarmersList] = useState<FarmerProfile[]>(DEMO_FARMERS);
-  const [selectedFarmerId, setSelectedFarmerId] = useState<string>(DEMO_FARMERS[0].id);
+  const [selectedFarmerId, setSelectedFarmerId] = useState<string>(farmers[0]?.id || DEMO_FARMERS[0].id);
   const [selectedProgramId, setSelectedProgramId] = useState<string>(SUPPORT_PROGRAMS[0].id);
   const [searchQuery, setSearchQuery] = useState('');
   const [isGeneratingDocket, setIsGeneratingDocket] = useState(false);
-  const [generatedDocket, setGeneratedDocket] = useState<any | null>(null);
+  const [generatedDocket, setGeneratedDocket] = useState<AssistedDocket | null>(null);
 
-  // Operator metadata
   const operatorDetails = {
     centreName: 'Common Service Centre #TN-THJ-402',
     operatorName: 'V. Sundaresan (VLE Certification #8819)',
     block: 'Thiruvidaimarudur Block, Thanjavur District'
   };
 
-  const currentFarmer = farmersList.find((f) => f.id === selectedFarmerId) || farmersList[0];
-  const currentProgram = SUPPORT_PROGRAMS.find((p) => p.id === selectedProgramId) || SUPPORT_PROGRAMS[0];
+  const currentFarmer = useMemo(
+    () => farmers.find((f) => f.id === selectedFarmerId) || farmers[0] || DEMO_FARMERS[0],
+    [farmers, selectedFarmerId]
+  );
 
-  const eligibility = checkEligibility(currentFarmer, currentProgram);
+  const currentProgram = useMemo(
+    () => SUPPORT_PROGRAMS.find((p) => p.id === selectedProgramId) || SUPPORT_PROGRAMS[0],
+    [selectedProgramId]
+  );
+
+  const eligibility = useMemo(
+    () => checkEligibility(currentFarmer, currentProgram),
+    [currentFarmer, currentProgram]
+  );
 
   const handleGenerateDocket = () => {
     setIsGeneratingDocket(true);
@@ -67,15 +92,19 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
         })
       });
       setIsGeneratingDocket(false);
-    }, 400);
+    }, 150);
   };
 
-  // Filtered farmers
-  const filteredFarmers = farmersList.filter((f) =>
-    f.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    f.district.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    f.village.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredFarmers = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return farmers;
+    return farmers.filter(
+      (f) =>
+        f.name.toLowerCase().includes(q) ||
+        f.district.toLowerCase().includes(q) ||
+        f.village.toLowerCase().includes(q)
+    );
+  }, [farmers, searchQuery]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -83,7 +112,7 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-white rounded-2xl border border-[#E5E7EB] shadow-xs">
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#EAF5EC] text-[#1B4D2E] text-xs font-semibold mb-2">
-            <Users className="w-3.5 h-3.5" />
+            <Users className="w-3.5 h-3.5" aria-hidden="true" />
             <span>{isTa ? 'இ-சேவை & FPO களப்பணியாளர் தளம்' : 'CSC / VLE / FPO Operator Portal'}</span>
           </div>
           <h1 className="font-display font-extrabold text-2xl sm:text-3xl text-[#111827]">
@@ -96,14 +125,13 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
           </p>
         </div>
 
-        {/* Operator Badge */}
         <div className="p-3.5 rounded-xl bg-[#F8FAF9] border border-[#D7E3D9] text-xs text-[#2C3E30] shrink-0">
           <div className="font-bold text-[#14381E] flex items-center gap-1.5">
-            <Building className="w-3.5 h-3.5 text-[#1B4D2E]" />
+            <Building className="w-3.5 h-3.5 text-[#1B4D2E]" aria-hidden="true" />
             <span>{operatorDetails.centreName}</span>
           </div>
           <div className="text-[11px] text-[#4B5563] mt-0.5">{operatorDetails.operatorName}</div>
-          <div className="text-[11px] text-[#6B7280]">{operatorDetails.block}</div>
+          <div className="text-[11px] text-[#4B5563]">{operatorDetails.block}</div>
         </div>
       </div>
 
@@ -122,16 +150,19 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
                   onClick={onOpenCreateModal}
                   className="px-2.5 py-1 text-[11px] font-bold text-[#1B4D2E] bg-[#EAF5EC] hover:bg-[#D7EEDD] border border-[#C2E5CA] rounded-lg transition-colors cursor-pointer flex items-center gap-1"
                 >
-                  <UserPlus className="w-3 h-3" />
+                  <UserPlus className="w-3 h-3" aria-hidden="true" />
                   <span>{isTa ? '+ புதிய பதிவு' : '+ Register Walk-In'}</span>
                 </button>
               )}
             </div>
 
-            {/* Search Input */}
             <div className="relative">
-              <Search className="w-4 h-4 text-[#9CA3AF] absolute left-3 top-3" />
+              <Search className="w-4 h-4 text-[#6B7280] absolute left-3 top-3" aria-hidden="true" />
+              <label htmlFor="assisted-farmer-search" className="sr-only">
+                {isTa ? 'பெயர் அல்லது ஊர் கொண்டு தேடுக' : 'Search farmers by name, village, or district'}
+              </label>
               <input
+                id="assisted-farmer-search"
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -140,20 +171,21 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
               />
             </div>
 
-            {/* Farmer Selection Radio Cards */}
             <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1">
               {filteredFarmers.map((f) => {
-                const isSelected = f.id === selectedFarmerId;
+                const isSelected = f.id === currentFarmer.id;
                 const verifiedDocs = f.documents.filter((d) => d.available && d.verifiedStatus === 'verified').length;
 
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={f.id}
                     onClick={() => {
                       setSelectedFarmerId(f.id);
                       setGeneratedDocket(null);
                     }}
-                    className={`p-3 rounded-xl border transition-all cursor-pointer ${
+                    aria-pressed={isSelected}
+                    className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer ${
                       isSelected
                         ? 'border-[#1B4D2E] bg-[#F4F9F5] ring-1 ring-[#1B4D2E]'
                         : 'border-[#E5E7EB] bg-white hover:bg-[#FAFAFA]'
@@ -165,7 +197,7 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
                         {f.category.split(' ')[0]}
                       </span>
                     </div>
-                    <div className="text-[11px] text-[#6B7280] mt-1 flex items-center justify-between">
+                    <div className="text-[11px] text-[#4B5563] mt-1 flex items-center justify-between">
                       <span>{f.village}, {f.district}</span>
                       <span>{f.crop} · {f.landSizeAcres} ac</span>
                     </div>
@@ -173,18 +205,18 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
                       <span>Docs on hand: {verifiedDocs}/{f.documents.length}</span>
                       <span className="font-medium text-[#1B4D2E]">{isSelected ? 'Active →' : 'Select'}</span>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Scheme Selector */}
           <div className="bg-white p-5 rounded-2xl border border-[#E5E7EB] shadow-xs space-y-3">
-            <h3 className="font-display font-bold text-base text-[#111827]">
+            <label htmlFor="assisted-program-select" className="font-display font-bold text-base text-[#111827] block">
               {isTa ? 'ஆய்வு செய்ய வேண்டிய திட்டம்' : 'Target Support Program'}
-            </h3>
+            </label>
             <select
+              id="assisted-program-select"
               value={selectedProgramId}
               onChange={(e) => {
                 setSelectedProgramId(e.target.value);
@@ -198,7 +230,7 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
                 </option>
               ))}
             </select>
-            <p className="text-[11px] text-[#6B7280]">
+            <p className="text-[11px] text-[#4B5563]">
               Select scheme to evaluate eligibility rules and document completeness for {currentFarmer.name}.
             </p>
           </div>
@@ -206,11 +238,10 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
 
         {/* Right Col: Instant Eligibility Audit & Printable Assistance Docket */}
         <div className="lg:col-span-7 space-y-6">
-          {/* Quick Audit Snapshot Card */}
           <div className="bg-white p-6 rounded-2xl border border-[#E5E7EB] shadow-xs space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-[11px] uppercase tracking-wider font-bold text-[#6B7280]">
+                <span className="text-[11px] uppercase tracking-wider font-bold text-[#4B5563]">
                   Immediate Eligibility Audit
                 </span>
                 <h3 className="font-display font-bold text-lg text-[#111827]">
@@ -227,35 +258,34 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
                     : 'bg-rose-100 text-rose-900 border-rose-300'
                 }`}
               >
-                {eligibility.statusLabel}
+                {isTa ? eligibility.statusLabelTa : eligibility.statusLabel}
               </span>
             </div>
 
-            {/* Audit Checklist Matrix */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="p-3 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB]">
-                <div className="text-[#6B7280] font-medium">Jurisdiction & Location</div>
+                <div className="text-[#4B5563] font-medium">Jurisdiction & Location</div>
                 <div className="font-semibold text-[#111827] mt-0.5">
                   ✓ {currentFarmer.district} (Notified Zone)
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB]">
-                <div className="text-[#6B7280] font-medium">Crop & Landholding</div>
+                <div className="text-[#4B5563] font-medium">Crop & Landholding</div>
                 <div className="font-semibold text-[#111827] mt-0.5">
                   ✓ {currentFarmer.crop} ({currentFarmer.landSizeAcres} acres)
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB]">
-                <div className="text-[#6B7280] font-medium">Farmer Classification</div>
+                <div className="text-[#4B5563] font-medium">Farmer Classification</div>
                 <div className="font-semibold text-[#111827] mt-0.5">
                   ✓ {currentFarmer.category}
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-[#F9FAFB] border border-[#E5E7EB]">
-                <div className="text-[#6B7280] font-medium">Document Dossier Status</div>
+                <div className="text-[#4B5563] font-medium">Document Dossier Status</div>
                 <div className="font-semibold text-[#111827] mt-0.5">
                   {eligibility.missingDocuments.length === 0 ? (
                     <span className="text-emerald-700">✓ All {eligibility.readyDocuments.length} Docs Ready</span>
@@ -266,27 +296,26 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="pt-2 flex items-center justify-between">
-              <div className="text-xs text-[#6B7280]">
+            <div className="pt-2 flex items-center justify-between gap-3">
+              <div className="text-xs text-[#4B5563]">
                 Operator can generate and hand over a physical action docket to the farmer.
               </div>
 
               <button
+                type="button"
                 onClick={handleGenerateDocket}
                 disabled={isGeneratingDocket}
-                className="px-5 py-2.5 text-xs font-bold text-white bg-[#1B4D2E] hover:bg-[#143B23] rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-xs"
+                className="px-5 py-2.5 text-xs font-bold text-white bg-[#1B4D2E] hover:bg-[#143B23] rounded-lg transition-all flex items-center gap-2 cursor-pointer shadow-xs shrink-0"
               >
-                <FileText className="w-4 h-4" />
+                <FileText className="w-4 h-4" aria-hidden="true" />
                 <span>{isGeneratingDocket ? 'Preparing...' : 'Generate Official Docket'}</span>
               </button>
             </div>
           </div>
 
-          {/* Generated Official Assistance Docket (Printable) */}
+          {/* Generated Official Assistance Docket */}
           {generatedDocket && (
             <div className="bg-white rounded-2xl border-2 border-[#1B4D2E] shadow-lg overflow-hidden print-card">
-              {/* Docket Top Banner */}
               <div className="p-5 bg-[#1B4D2E] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <div className="text-[11px] uppercase tracking-wider text-[#A7F3D0] font-bold">
@@ -301,37 +330,35 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => window.print()}
                   className="px-4 py-2 text-xs font-bold text-[#14381E] bg-[#86EFAC] hover:bg-[#6EE7B7] rounded-lg transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer no-print shadow-xs"
                 >
-                  <Printer className="w-4 h-4" />
+                  <Printer className="w-4 h-4" aria-hidden="true" />
                   <span>Print Physical Handout</span>
                 </button>
               </div>
 
-              {/* Docket Body */}
               <div className="p-6 space-y-6 text-xs text-[#1F2937]">
-                {/* Farmer Details Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-4 rounded-xl bg-[#F9FAFB] border border-[#E5E7EB]">
                   <div>
-                    <span className="text-[#6B7280] block text-[11px]">Farmer Name</span>
+                    <span className="text-[#4B5563] block text-[11px]">Farmer Name</span>
                     <span className="font-bold text-[#111827] text-sm">{generatedDocket.farmer.name}</span>
                   </div>
                   <div>
-                    <span className="text-[#6B7280] block text-[11px]">Village & District</span>
+                    <span className="text-[#4B5563] block text-[11px]">Village & District</span>
                     <span className="font-semibold text-[#111827]">{generatedDocket.farmer.village}, {generatedDocket.farmer.district}</span>
                   </div>
                   <div>
-                    <span className="text-[#6B7280] block text-[11px]">Crop & Land Area</span>
+                    <span className="text-[#4B5563] block text-[11px]">Crop & Land Area</span>
                     <span className="font-semibold text-[#111827]">{generatedDocket.farmer.crop} ({generatedDocket.farmer.landSizeAcres} ac)</span>
                   </div>
                   <div>
-                    <span className="text-[#6B7280] block text-[11px]">Category</span>
+                    <span className="text-[#4B5563] block text-[11px]">Category</span>
                     <span className="font-semibold text-[#111827]">{generatedDocket.farmer.category}</span>
                   </div>
                 </div>
 
-                {/* Scheme & Assessment */}
                 <div>
                   <h4 className="font-bold uppercase tracking-wider text-[#111827] text-xs mb-2">
                     Evaluated Program & Findings
@@ -349,13 +376,12 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
                   </div>
                 </div>
 
-                {/* Next Steps Checklist for Farmer */}
                 <div>
                   <h4 className="font-bold uppercase tracking-wider text-[#111827] text-xs mb-2">
                     Next Action Checklist (Handout for Farmer)
                   </h4>
                   <div className="space-y-2">
-                    {generatedDocket.pathway.steps.map((s: any) => (
+                    {generatedDocket.pathway.steps.map((s) => (
                       <div
                         key={s.stepNumber}
                         className="p-3 rounded-lg border border-[#E5E7EB] flex items-start gap-3"
@@ -365,15 +391,14 @@ export const AssistedModePage: React.FC<AssistedModePageProps> = ({ language, on
                         </span>
                         <div>
                           <div className="font-semibold text-[#111827]">{s.title}</div>
-                          <div className="text-[#6B7280] mt-0.5">{s.description}</div>
+                          <div className="text-[#4B5563] mt-0.5">{s.description}</div>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                {/* Seal & Signature lines */}
-                <div className="pt-8 border-t border-[#E5E7EB] grid grid-cols-2 gap-8 text-[11px] text-[#6B7280]">
+                <div className="pt-8 border-t border-[#E5E7EB] grid grid-cols-2 gap-8 text-[11px] text-[#4B5563]">
                   <div>
                     <div className="border-b border-[#9CA3AF] w-40 mb-1" />
                     <div>Signature of VLE Operator / Seal</div>

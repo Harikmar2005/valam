@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, CheckCircle, AlertTriangle, UserCheck, MapPin, UserPlus, Sparkles } from 'lucide-react';
+import React, { useEffect } from 'react';
+import { X, CheckCircle, MapPin, UserPlus } from 'lucide-react';
 import { DEMO_FARMERS } from '../data/mockData';
 import { FarmerProfile, Language } from '../types';
 
@@ -7,6 +7,7 @@ interface FarmerSelectorModalProps {
   isOpen: boolean;
   onClose: () => void;
   activeFarmer: FarmerProfile;
+  farmers?: FarmerProfile[];
   onSelectFarmer: (farmer: FarmerProfile) => void;
   onOpenCreateModal: () => void;
   language: Language;
@@ -16,10 +17,20 @@ export const FarmerSelectorModal: React.FC<FarmerSelectorModalProps> = ({
   isOpen,
   onClose,
   activeFarmer,
+  farmers = DEMO_FARMERS,
   onSelectFarmer,
   onOpenCreateModal,
   language
 }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
   const isTa = language === 'ta';
 
@@ -55,31 +66,39 @@ export const FarmerSelectorModal: React.FC<FarmerSelectorModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="farmer-selector-title"
+    >
       <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-[#E5E7EB]">
         {/* Header */}
         <div className="p-5 border-b border-[#E5E7EB] flex items-center justify-between">
           <div>
-            <h3 className="font-display font-bold text-lg text-[#111827]">
+            <h3 id="farmer-selector-title" className="font-display font-bold text-lg text-[#111827]">
               {isTa ? 'விவசாயி மாதிரி சுயவிவரத்தை தேர்வு செய்க' : 'Select Demo Farmer Scenario'}
             </h3>
-            <p className="text-xs text-[#6B7280]">
+            <p className="text-xs text-[#4B5563]">
               {isTa
                 ? 'வெவ்வேறு தகுதி நிலைகள் மற்றும் விடுபட்ட ஆவணங்களை பரிசோதிக்க மாதிரி சுயவிவரத்தை தேர்வு செய்யவும்.'
                 : 'Test different eligibility outcomes, missing documents, and pathways by switching scenarios.'}
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[#6B7280] hover:bg-[#F3F4F6] transition-colors"
+            aria-label={isTa ? 'சாளரத்தை மூடுக' : 'Close dialog'}
+            className="p-1.5 rounded-lg text-[#4B5563] hover:bg-[#F3F4F6] transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
         {/* Register New Custom Farmer ID Action */}
         <div className="px-5 pt-4">
           <button
+            type="button"
             onClick={() => {
               onClose();
               onOpenCreateModal();
@@ -88,7 +107,7 @@ export const FarmerSelectorModal: React.FC<FarmerSelectorModalProps> = ({
           >
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-[#1B4D2E] text-white flex items-center justify-center font-bold">
-                <UserPlus className="w-4 h-4 text-[#86EFAC]" />
+                <UserPlus className="w-4 h-4 text-[#86EFAC]" aria-hidden="true" />
               </div>
               <div className="text-left">
                 <div className="text-xs font-bold text-[#111827] group-hover:text-[#1B4D2E]">
@@ -107,20 +126,27 @@ export const FarmerSelectorModal: React.FC<FarmerSelectorModalProps> = ({
 
         {/* Scenarios List */}
         <div className="p-5 space-y-3">
-          {DEMO_FARMERS.map((farmer) => {
+          {farmers.map((farmer) => {
             const isSelected = activeFarmer.id === farmer.id;
-            const meta = scenarioDescriptions.find((s) => s.id === farmer.id);
+            const meta = scenarioDescriptions.find((s) => s.id === farmer.id) || {
+              scenarioLabel: `Custom Farmer ID: ${farmer.id}`,
+              scenarioLabelTa: `தனிப்பயன் விவசாயி ஐடி: ${farmer.id}`,
+              outcomeBadge: 'Custom Profile',
+              badgeColor: 'bg-sky-100 text-sky-900 border-sky-300'
+            };
             const verifiedDocs = farmer.documents.filter((d) => d.available && d.verifiedStatus === 'verified').length;
             const totalDocs = farmer.documents.length;
 
             return (
-              <div
+              <button
+                type="button"
                 key={farmer.id}
                 onClick={() => {
                   onSelectFarmer(farmer);
                   onClose();
                 }}
-                className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                aria-pressed={isSelected}
+                className={`w-full text-left p-4 rounded-xl border transition-all cursor-pointer ${
                   isSelected
                     ? 'border-[#1B4D2E] bg-[#F4F9F5] ring-2 ring-[#1B4D2E]/20'
                     : 'border-[#E5E7EB] hover:border-[#9CA3AF] hover:bg-[#FBFBFA]'
@@ -136,48 +162,53 @@ export const FarmerSelectorModal: React.FC<FarmerSelectorModalProps> = ({
                         <h4 className="font-semibold text-sm text-[#111827]">{farmer.name}</h4>
                         {isSelected && (
                           <span className="text-[11px] font-medium text-[#1B4D2E] flex items-center gap-0.5">
-                            <CheckCircle className="w-3.5 h-3.5 text-[#1B4D2E]" />
+                            <CheckCircle className="w-3.5 h-3.5 text-[#1B4D2E]" aria-hidden="true" />
                             {isTa ? 'செயலில் உள்ளது' : 'Active'}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-[#6B7280]">
+                      <div className="flex items-center gap-2 text-xs text-[#4B5563]">
                         <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
+                          <MapPin className="w-3 h-3" aria-hidden="true" />
                           {farmer.district}, {farmer.state}
                         </span>
-                        <span>·</span>
+                        <span aria-hidden="true">·</span>
                         <span>{farmer.crop}</span>
-                        <span>·</span>
+                        <span aria-hidden="true">·</span>
                         <span className="font-medium text-[#111827]">{farmer.landSizeAcres} acres</span>
                       </div>
                     </div>
                   </div>
 
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${meta?.badgeColor}`}>
-                    {isTa ? meta?.scenarioLabelTa.split(':')[0] : meta?.outcomeBadge}
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded border ${meta.badgeColor}`}>
+                    {isTa ? meta.scenarioLabelTa.split(':')[0] : meta.outcomeBadge}
                   </span>
                 </div>
 
                 <div className="mt-2 pt-2 border-t border-[#E5E7EB]/60 flex items-center justify-between text-xs text-[#4B5563]">
                   <span className="text-[#374151] font-medium">
-                    {isTa ? meta?.scenarioLabelTa : meta?.scenarioLabel}
+                    {isTa ? meta.scenarioLabelTa : meta.scenarioLabel}
                   </span>
-                  <span className="text-[11px] text-[#6B7280]">
+                  <span className="text-[11px] text-[#4B5563]">
                     {verifiedDocs}/{totalDocs} {isTa ? 'ஆவணங்கள் தயார்' : 'docs ready'}
                   </span>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
 
         {/* Footer */}
-        <div className="p-4 bg-[#F9FAFB] border-t border-[#E5E7EB] flex items-center justify-between text-xs text-[#6B7280]">
-          <span>Tip: Ravi Kumar showcases missing bank document detection.</span>
+        <div className="p-4 bg-[#F9FAFB] border-t border-[#E5E7EB] flex items-center justify-between text-xs text-[#4B5563]">
+          <span>
+            {isTa
+              ? 'குறிப்பு: ரவி குமார் வங்கி ஆவணம் விடுபட்டதைக் காட்டுகிறார்.'
+              : 'Tip: Ravi Kumar showcases missing bank document detection.'}
+          </span>
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-[#111827] bg-white border border-[#D1D5DB] rounded-lg hover:bg-[#F3F4F6] transition-colors"
+            className="px-4 py-2 text-xs font-semibold text-[#111827] bg-white border border-[#D1D5DB] rounded-lg hover:bg-[#F3F4F6] transition-colors cursor-pointer"
           >
             {isTa ? 'மூடுக' : 'Close'}
           </button>

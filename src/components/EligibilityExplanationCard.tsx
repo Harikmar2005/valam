@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CheckCircle2,
   XCircle,
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { DEMO_FARMERS } from '../data/mockData';
+import { getSafeHttpUrl } from '../utils/farmerUtils';
 import {
   AiIneligibilityExplanation,
   EligibilityResult,
@@ -58,6 +59,11 @@ export const EligibilityExplanationCard: React.FC<EligibilityExplanationCardProp
   const [isAiExpanded, setIsAiExpanded] = useState(autoExpandAi || eligibility.status === 'not_eligible');
 
   const activeFarmer = farmer || DEMO_FARMERS[0];
+
+  useEffect(() => {
+    setAiExplanation(null);
+    setIsAiExpanded(autoExpandAi || eligibility.status === 'not_eligible');
+  }, [activeFarmer.id, program.id, eligibility.status, autoExpandAi]);
 
   const handleFetchAiExplanation = async () => {
     if (aiExplanation) {
@@ -169,8 +175,10 @@ export const EligibilityExplanationCard: React.FC<EligibilityExplanationCardProp
           </div>
 
           <button
+            type="button"
             onClick={handleFetchAiExplanation}
             disabled={isAiLoading}
+            aria-expanded={Boolean(isAiExpanded && (isAiLoading || aiExplanation))}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer shrink-0 self-start sm:self-auto ${
               eligibility.status === 'not_eligible'
                 ? 'bg-[#B91C1C] hover:bg-[#991B1B] text-white ring-2 ring-rose-300'
@@ -179,12 +187,12 @@ export const EligibilityExplanationCard: React.FC<EligibilityExplanationCardProp
           >
             {isAiLoading ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
                 <span>{isTa ? 'AI ஆய்வு செய்கிறது...' : 'AI Analyzing Rules...'}</span>
               </>
             ) : (
               <>
-                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" aria-hidden="true" />
                 <span>
                   {aiExplanation
                     ? isAiExpanded
@@ -194,15 +202,15 @@ export const EligibilityExplanationCard: React.FC<EligibilityExplanationCardProp
                     ? 'AI-யிடம் விளக்கம் கேட்க'
                     : 'Explain Why With AI'}
                 </span>
-                {isAiExpanded ? <ChevronUp className="w-3.5 h-3.5 ml-0.5" /> : <ChevronDown className="w-3.5 h-3.5 ml-0.5" />}
+                {isAiExpanded && aiExplanation ? <ChevronUp className="w-3.5 h-3.5 ml-0.5" aria-hidden="true" /> : <ChevronDown className="w-3.5 h-3.5 ml-0.5" aria-hidden="true" />}
               </>
             )}
           </button>
         </div>
 
         {/* AI Ineligibility Diagnostic Panel */}
-        {isAiExpanded && (
-          <div className="mt-4 p-4 rounded-xl bg-white border-2 border-amber-300 shadow-md text-xs space-y-4 animate-fadeIn">
+        {isAiExpanded && (isAiLoading || aiExplanation) && (
+          <div aria-live="polite" className="mt-4 p-4 rounded-xl bg-white border-2 border-amber-300 shadow-md text-xs space-y-4 animate-fadeIn">
             {isAiLoading && (
               <div className="flex items-center justify-center py-6 gap-3 text-[#4B5563]">
                 <Loader2 className="w-5 h-5 text-[#1B4D2E] animate-spin" />
@@ -429,15 +437,17 @@ export const EligibilityExplanationCard: React.FC<EligibilityExplanationCardProp
               {isTa ? 'விண்ணப்பிக்கும் தளம்: ' : 'Application Channel: '}
               {program.applicationChannel.name}
             </span>
-            <a
-              href={program.officialInformationUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-[#1B4D2E] hover:underline flex items-center gap-1 font-semibold"
-            >
-              <span>{isTa ? 'அதிகாரப்பூர்வ தளம்' : 'Official Portal'}</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
+            {getSafeHttpUrl(program.officialInformationUrl) && (
+              <a
+                href={getSafeHttpUrl(program.officialInformationUrl)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#1B4D2E] hover:underline flex items-center gap-1 font-semibold"
+              >
+                <span>{isTa ? 'அதிகாரப்பூர்வ தளம்' : 'Official Portal'}</span>
+                <ExternalLink className="w-3 h-3" aria-hidden="true" />
+              </a>
+            )}
           </div>
         </div>
 

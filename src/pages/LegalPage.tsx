@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock, FileText, ShieldAlert, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Lock, FileText, ShieldAlert, ArrowLeft } from 'lucide-react';
 import { Language } from '../types';
 
 interface LegalPageProps {
@@ -15,10 +15,11 @@ export const LegalPage: React.FC<LegalPageProps> = ({ type, language, onBack }) 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
       <button
+        type="button"
         onClick={onBack}
         className="flex items-center gap-1.5 text-xs font-semibold text-[#1B4D2E] hover:underline cursor-pointer"
       >
-        <ArrowLeft className="w-4 h-4" />
+        <ArrowLeft className="w-4 h-4" aria-hidden="true" />
         <span>{isTa ? 'பின்செல்க' : 'Back to App'}</span>
       </button>
 

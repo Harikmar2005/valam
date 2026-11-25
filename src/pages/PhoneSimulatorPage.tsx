@@ -1,42 +1,45 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   PhoneCall,
   PhoneOff,
   Volume2,
   VolumeX,
   MessageSquare,
-  RotateCcw,
-  Sparkles,
-  Info,
-  ShieldAlert,
-  ArrowRight,
-  MapPin,
   CheckCircle2,
   Copy,
   Printer,
   Smartphone,
   Radio,
   FileText,
-  Building,
   AlertTriangle,
-  ExternalLink,
   ChevronRight
 } from 'lucide-react';
 import { api } from '../services/api';
-import { Language, PhoneSessionState, SupportProgram } from '../types';
+import { Language, PhoneSessionState } from '../types';
 
 interface PhoneSimulatorPageProps {
   language: Language;
 }
 
+interface DeliveredSmsItem {
+  id: string;
+  time: string;
+  text: string;
+  schemeName: string;
+  shortCode: string;
+  token: string;
+}
+
+interface AudioWindow extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
+
 export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language: appLang }) => {
   const isAppTa = appLang === 'ta';
 
-  // Simulator Mode: 'ivr' (Voice Call 1800-VALAM) or 'ussd' (Screen Menu *144#)
   const [simulatorMode, setSimulatorMode] = useState<'ivr' | 'ussd'>('ivr');
   const [callerNumber, setCallerNumber] = useState('+91 94432 18901');
 
-  // Phone Call State
   const [isCallActive, setIsCallActive] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [isAudioMuted, setIsAudioMuted] = useState(false);
@@ -44,33 +47,37 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
   const [lastKeyPressed, setLastKeyPressed] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // Delivered SMS Inbox
-  const [deliveredSmsList, setDeliveredSmsList] = useState<
-    Array<{
-      id: string;
-      time: string;
-      text: string;
-      schemeName: string;
-      shortCode: string;
-      token: string;
-    }>
-  >([]);
+  const [deliveredSmsList, setDeliveredSmsList] = useState<DeliveredSmsItem[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const demoTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+
+  const clearDemoTimers = () => {
+    demoTimersRef.current.forEach((timerId) => clearTimeout(timerId));
+    demoTimersRef.current = [];
+  };
+
+  // Cleanup speechSynthesis and pending timers on unmount
+  useEffect(() => {
+    return () => {
+      clearDemoTimers();
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
 
   // Timer for call duration
   useEffect(() => {
-    let interval: any;
-    if (isCallActive) {
-      interval = setInterval(() => {
-        setCallDuration((prev) => prev + 1);
-      }, 1000);
-    } else {
+    if (!isCallActive) {
       setCallDuration(0);
+      return;
     }
+    const interval = setInterval(() => {
+      setCallDuration((prev) => prev + 1);
+    }, 1000);
     return () => clearInterval(interval);
   }, [isCallActive]);
 
-  // Audio speech synthesis helper
   const speakPrompt = (text: string, langCode: string) => {
     if (isAudioMuted || typeof window === 'undefined' || !('speechSynthesis' in window)) return;
     try {
@@ -87,10 +94,11 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
     }
   };
 
-  // Web Audio synthetic DTMF beep
   const playBeep = (char: string) => {
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioCtor = window.AudioContext || (window as AudioWindow).webkitAudioContext;
+      if (!AudioCtor) return;
+      const audioCtx = new AudioCtor();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
       osc.type = 'sine';
@@ -101,15 +109,14 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
       osc.start();
       setTimeout(() => {
         osc.stop();
-        audioCtx.close();
+        void audioCtx.close();
       }, 110);
     } catch {
       // AudioContext unavailable
     }
   };
 
-  // Start Call Flow
-  const handleStartCall = async (customNumber?: string) => {
+  const handleStartCall = async (customNumber?: string): Promise<PhoneSessionState> => {
     setIsCallActive(true);
     setCallDuration(0);
 
@@ -117,14 +124,14 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
     const initialSession = await api.startPhoneSession(activeNum);
     setSession(initialSession);
 
-    // Speak initial IVR prompt
     if (simulatorMode === 'ivr') {
       speakPrompt(initialSession.ivrAudioPromptEn, 'en');
     }
+    return initialSession;
   };
 
-  // End Call Flow
   const handleEndCall = () => {
+    clearDemoTimers();
     setIsCallActive(false);
     setIsSpeaking(false);
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
@@ -132,36 +139,19 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
     }
   };
 
-  // Handle Numeric Keypad Click
-  const handleKeypadPress = async (digit: string) => {
-    setLastKeyPressed(digit);
-    setTimeout(() => setLastKeyPressed(null), 300);
-    playBeep(digit);
-
-    if (!isCallActive) {
-      // If pressing CALL or digits on standby, auto-initiate
-      if (digit === '1' || digit === '2') {
-        await handleStartCall();
-      }
-      return;
-    }
-
-    if (!session) return;
-
-    const updated = await api.handlePhoneInput(session.sessionId, digit, session);
+  const applySessionUpdate = async (digit: string, currentSession: PhoneSessionState): Promise<PhoneSessionState> => {
+    const updated = await api.handlePhoneInput(currentSession.sessionId, digit, currentSession);
     setSession(updated);
 
-    // Speak voice prompt in IVR mode
     if (simulatorMode === 'ivr') {
       const promptText = updated.language === 'ta' ? updated.ivrAudioPromptTa : updated.ivrAudioPromptEn;
       speakPrompt(promptText, updated.language);
     }
 
-    // If result reached, deliver official government SMS
     if (updated.step === 'result' && (updated.smsMessageEn || updated.smsMessageTa)) {
-      setTimeout(() => {
+      const smsTimer = setTimeout(() => {
         const smsText = updated.language === 'ta' ? updated.smsMessageTa! : updated.smsMessageEn!;
-        const newSms = {
+        const newSms: DeliveredSmsItem = {
           id: `SMS_${Date.now()}`,
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           text: smsText,
@@ -172,7 +162,6 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
 
         setDeliveredSmsList((prev) => [newSms, ...prev]);
 
-        // Vibration API if supported
         if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
           try {
             navigator.vibrate([100, 50, 100]);
@@ -180,25 +169,53 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
             // vibration rejected
           }
         }
-      }, 1000);
+      }, 300);
+      demoTimersRef.current.push(smsTimer);
     }
+
+    return updated;
   };
 
-  // Run full automated sequence for one-click demo
-  const runPresetDemo = async (sequence: string[]) => {
+  const handleKeypadPress = async (digit: string) => {
+    setLastKeyPressed(digit);
+    setTimeout(() => setLastKeyPressed(null), 300);
+    playBeep(digit);
+
+    if (!isCallActive) {
+      if (digit === '1' || digit === '2') {
+        await handleStartCall();
+      }
+      return;
+    }
+
+    if (!session) return;
+    await applySessionUpdate(digit, session);
+  };
+
+  // Run sequential preset demo cleanly without stale closure bugs
+  const runPresetDemo = (sequence: string[]) => {
     handleEndCall();
-    setTimeout(async () => {
-      await handleStartCall();
-      sequence.forEach((digit, index) => {
-        setTimeout(() => {
-          handleKeypadPress(digit);
-        }, (index + 1) * 750);
-      });
-    }, 200);
+    const startTimer = setTimeout(async () => {
+      let runningSession = await handleStartCall();
+      for (let i = 0; i < sequence.length; i++) {
+        const digit = sequence[i];
+        await new Promise<void>((resolve) => {
+          const t = setTimeout(resolve, 450);
+          demoTimersRef.current.push(t);
+        });
+        setLastKeyPressed(digit);
+        setTimeout(() => setLastKeyPressed(null), 250);
+        playBeep(digit);
+        runningSession = await applySessionUpdate(digit, runningSession);
+      }
+    }, 100);
+    demoTimersRef.current.push(startTimer);
   };
 
   const handleCopySms = (id: string, text: string) => {
-    navigator.clipboard.writeText(text);
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      void navigator.clipboard.writeText(text);
+    }
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2500);
   };
@@ -209,7 +226,6 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
     return `${mins.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Helper to map current step to a step index (1 of 6)
   const getStepProgress = () => {
     if (!session || !isCallActive) return null;
     switch (session.step) {
@@ -237,10 +253,10 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* 1. Header Banner & Architecture Description */}
+      {/* 1. Header Banner */}
       <div>
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#EAF5EC] text-[#1B4D2E] text-xs font-bold mb-2 border border-[#C2E5CA]">
-          <Smartphone className="w-3.5 h-3.5" />
+          <Smartphone className="w-3.5 h-3.5" aria-hidden="true" />
           <span>{isAppTa ? 'அடிமட்ட இணைப்பு மாதிரி (Zero-Broadband Access)' : 'Zero-Broadband Feature Phone & USSD Engine'}</span>
         </div>
         <h1 className="font-display font-extrabold text-2xl sm:text-3xl text-[#111827]">
@@ -255,39 +271,44 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
 
       {/* Simulator Mode Control & Phone Number Bar */}
       <div className="bg-white p-4 rounded-2xl border border-[#E5E7EB] shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        {/* Mode Selector */}
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-[#374151] uppercase tracking-wider">Mode:</span>
-          <div className="flex items-center bg-[#F3F4F6] p-1 rounded-xl border border-[#E5E7EB]">
+          <div className="flex items-center bg-[#F3F4F6] p-1 rounded-xl border border-[#E5E7EB]" role="group" aria-label="Simulator Mode">
             <button
+              type="button"
               onClick={() => setSimulatorMode('ivr')}
+              aria-pressed={simulatorMode === 'ivr'}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                 simulatorMode === 'ivr'
                   ? 'bg-white text-[#1B4D2E] shadow-xs'
-                  : 'text-[#6B7280] hover:text-[#111827]'
+                  : 'text-[#4B5563] hover:text-[#111827]'
               }`}
             >
-              <Radio className="w-3.5 h-3.5" />
+              <Radio className="w-3.5 h-3.5" aria-hidden="true" />
               <span>IVR Voice Call (1800-VALAM)</span>
             </button>
             <button
+              type="button"
               onClick={() => setSimulatorMode('ussd')}
+              aria-pressed={simulatorMode === 'ussd'}
               className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                 simulatorMode === 'ussd'
                   ? 'bg-white text-[#1B4D2E] shadow-xs'
-                  : 'text-[#6B7280] hover:text-[#111827]'
+                  : 'text-[#4B5563] hover:text-[#111827]'
               }`}
             >
-              <Smartphone className="w-3.5 h-3.5" />
+              <Smartphone className="w-3.5 h-3.5" aria-hidden="true" />
               <span>USSD Dial Menu (*144#)</span>
             </button>
           </div>
         </div>
 
-        {/* Custom Caller Number Input */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-[#4B5563]">Caller Number:</span>
+          <label htmlFor="caller-number-input" className="text-xs font-semibold text-[#4B5563]">
+            Caller Number:
+          </label>
           <input
+            id="caller-number-input"
             type="text"
             value={callerNumber}
             onChange={(e) => setCallerNumber(e.target.value)}
@@ -296,7 +317,7 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
           />
           {isCallActive && (
             <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" aria-hidden="true" />
               Active ({formatSeconds(callDuration)})
             </span>
           )}
@@ -308,24 +329,23 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
         {/* Left Column: Physical Button Phone Simulation */}
         <div className="lg:col-span-5 flex flex-col items-center">
           <div className="w-[330px] sm:w-[350px] bg-[#1E252B] p-5 rounded-[44px] border-4 border-[#333E48] shadow-2xl relative select-none">
-            {/* Phone Ear Speaker slit */}
             <div className="w-16 h-1.5 bg-[#424F5C] rounded-full mx-auto mb-3" />
 
-            {/* Retro Feature Phone Monochrome / LCD Screen */}
-            <div className="bg-[#9EBA7B] p-3 rounded-lg border-4 border-[#2A343D] text-[#16270E] font-mono shadow-inner min-h-[195px] flex flex-col justify-between relative overflow-hidden">
-              {/* Scanline overlay effect */}
+            {/* Retro Feature Phone LCD Screen */}
+            <div
+              className="bg-[#9EBA7B] p-3 rounded-lg border-4 border-[#2A343D] text-[#16270E] font-mono shadow-inner min-h-[195px] flex flex-col justify-between relative overflow-hidden"
+              aria-live="polite"
+            >
               <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/[0.04] to-transparent pointer-events-none" />
 
-              {/* Status Header Bar */}
               <div className="flex items-center justify-between text-[10px] pb-1 border-b border-[#7B9758] tracking-wider uppercase font-bold">
                 <span className="flex items-center gap-1">
-                  <span className="inline-block w-1.5 h-1.5 bg-[#16270E] rounded-full" />
+                  <span className="inline-block w-1.5 h-1.5 bg-[#16270E] rounded-full" aria-hidden="true" />
                   {simulatorMode === 'ivr' ? 'VALAM 1800' : 'USSD *144#'}
                 </span>
                 <span>{isCallActive ? formatSeconds(callDuration) : 'STANDBY'}</span>
               </div>
 
-              {/* Step Progress Pill on Screen */}
               {stepProgress && isCallActive && (
                 <div className="text-[10px] bg-[#89A466] text-[#0F1E07] px-1.5 py-0.5 rounded font-extrabold flex items-center justify-between mt-1">
                   <span>STEP {stepProgress.current}/{stepProgress.total}: {stepProgress.title.toUpperCase()}</span>
@@ -333,7 +353,6 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
                 </div>
               )}
 
-              {/* Screen Body Text */}
               <div className="py-2 text-[11px] leading-relaxed font-bold whitespace-pre-line overflow-y-auto max-h-[120px]">
                 {!isCallActive && (
                   <div className="text-center py-5 space-y-1">
@@ -352,11 +371,10 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
                 )}
               </div>
 
-              {/* Call Status Indicator */}
               <div className="pt-1 border-t border-[#7B9758] flex items-center justify-between text-[10px] font-bold">
                 {isCallActive ? (
                   <span className="text-[#16270E] flex items-center gap-1">
-                    <span className="inline-block w-1.5 h-1.5 bg-[#16270E] rounded-full animate-pulse" />
+                    <span className="inline-block w-1.5 h-1.5 bg-[#16270E] rounded-full animate-pulse" aria-hidden="true" />
                     {session?.step === 'result' ? 'COMPLETED' : 'CONNECTED (PRESS DIGIT)'}
                   </span>
                 ) : (
@@ -368,46 +386,49 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
 
             {/* D-Pad & Control Buttons */}
             <div className="mt-4 grid grid-cols-3 gap-2 px-1">
-              {/* Green Call Button */}
               <button
-                onClick={() => handleStartCall()}
+                type="button"
+                onClick={() => void handleStartCall()}
                 disabled={isCallActive}
+                aria-label="Dial Toll-Free 1800-VALAM"
                 className="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-md active:translate-y-0.5 transition-all cursor-pointer"
                 title="Dial Toll-Free 1800-VALAM"
               >
-                <PhoneCall className="w-4 h-4" />
+                <PhoneCall className="w-4 h-4" aria-hidden="true" />
                 <span>CALL</span>
               </button>
 
-              {/* Navigation / Clear Center */}
               <button
+                type="button"
                 onClick={() => {
                   if (session) {
-                    handleKeypadPress('9');
+                    void handleKeypadPress('9');
                   } else {
-                    handleStartCall();
+                    void handleStartCall();
                   }
                 }}
+                aria-label="Open or reset phone menu"
                 className="py-2.5 rounded-xl bg-[#2E3944] hover:bg-[#3D4B59] text-[#CBD5E1] font-bold text-xs active:translate-y-0.5 transition-all cursor-pointer"
                 title="Reset Menu"
               >
                 MENU
               </button>
 
-              {/* Red End Button */}
               <button
+                type="button"
                 onClick={handleEndCall}
                 disabled={!isCallActive}
+                aria-label="End call"
                 className="py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-md active:translate-y-0.5 transition-all cursor-pointer"
                 title="Hang up call"
               >
-                <PhoneOff className="w-4 h-4" />
+                <PhoneOff className="w-4 h-4" aria-hidden="true" />
                 <span>END</span>
               </button>
             </div>
 
             {/* 0-9 Keypad Matrix */}
-            <div className="mt-4 grid grid-cols-3 gap-2 px-1">
+            <div className="mt-4 grid grid-cols-3 gap-2 px-1" role="group" aria-label="Phone numeric keypad">
               {[
                 { key: '1', sub: '.,' },
                 { key: '2', sub: 'ABC' },
@@ -423,8 +444,10 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
                 { key: '#', sub: ' ' }
               ].map((item) => (
                 <button
+                  type="button"
                   key={item.key}
-                  onClick={() => handleKeypadPress(item.key)}
+                  onClick={() => void handleKeypadPress(item.key)}
+                  aria-label={`Keypad digit ${item.key}`}
                   className={`py-2 rounded-xl text-white font-bold transition-all shadow-md active:translate-y-0.5 flex flex-col items-center justify-center cursor-pointer ${
                     lastKeyPressed === item.key
                       ? 'bg-[#4B5E70] ring-2 ring-emerald-400'
@@ -439,7 +462,6 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
               ))}
             </div>
 
-            {/* Phone Microphone Hole */}
             <div className="w-2 h-2 bg-[#11161B] rounded-full mx-auto mt-4" />
           </div>
 
@@ -449,8 +471,8 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
               {isAppTa ? 'மாதிரி விரைவு சோதனைகள் (1-கிளிக்):' : 'Automated 1-Click Test Scenarios:'}
             </span>
 
-            {/* Scenario 1: Marginal Paddy Farmer */}
             <button
+              type="button"
               onClick={() => runPresetDemo(['1', '1', '1', '1', '1', '2'])}
               className="w-full text-left p-2.5 rounded-xl bg-white hover:bg-[#F3FAF5] border border-[#CBD5E1] text-xs transition-colors flex items-center justify-between group cursor-pointer"
             >
@@ -458,15 +480,15 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
                 <div className="font-bold text-[#14381E] group-hover:text-[#1B4D2E]">
                   Scenario 1: Marginal Paddy Farmer (PMKSY)
                 </div>
-                <div className="text-[11px] text-[#64748B]">
+                <div className="text-[11px] text-[#4B5563]">
                   Tamil → Irrigation → Rice → 2 ac → Borewell → 100% Subsidy
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-[#94A3B8] group-hover:text-[#1B4D2E]" />
+              <ChevronRight className="w-4 h-4 text-[#64748B] group-hover:text-[#1B4D2E]" aria-hidden="true" />
             </button>
 
-            {/* Scenario 2: Small Cotton Farmer */}
             <button
+              type="button"
               onClick={() => runPresetDemo(['1', '2', '2', '2', '3', '3'])}
               className="w-full text-left p-2.5 rounded-xl bg-white hover:bg-[#F3FAF5] border border-[#CBD5E1] text-xs transition-colors flex items-center justify-between group cursor-pointer"
             >
@@ -474,15 +496,15 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
                 <div className="font-bold text-[#14381E] group-hover:text-[#1B4D2E]">
                   Scenario 2: Small Cotton Farmer (PMFBY)
                 </div>
-                <div className="text-[11px] text-[#64748B]">
+                <div className="text-[11px] text-[#4B5563]">
                   Tamil → Insurance → Cotton → 3.5 ac → Rainfed → All Docs Ready
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-[#94A3B8] group-hover:text-[#1B4D2E]" />
+              <ChevronRight className="w-4 h-4 text-[#64748B] group-hover:text-[#1B4D2E]" aria-hidden="true" />
             </button>
 
-            {/* Scenario 3: Medium Sugarcane Farmer */}
             <button
+              type="button"
               onClick={() => runPresetDemo(['2', '3', '3', '2', '1', '2'])}
               className="w-full text-left p-2.5 rounded-xl bg-white hover:bg-[#F3FAF5] border border-[#CBD5E1] text-xs transition-colors flex items-center justify-between group cursor-pointer"
             >
@@ -490,11 +512,11 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
                 <div className="font-bold text-[#14381E] group-hover:text-[#1B4D2E]">
                   Scenario 3: Sugarcane Solar Pump (PM-KUSUM)
                 </div>
-                <div className="text-[11px] text-[#64748B]">
+                <div className="text-[11px] text-[#4B5563]">
                   English → Machinery → Sugarcane → 7 ac → 70% Solar Subsidy
                 </div>
               </div>
-              <ChevronRight className="w-4 h-4 text-[#94A3B8] group-hover:text-[#1B4D2E]" />
+              <ChevronRight className="w-4 h-4 text-[#64748B] group-hover:text-[#1B4D2E]" aria-hidden="true" />
             </button>
           </div>
         </div>
@@ -505,7 +527,7 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
           <div className="bg-white p-5 rounded-2xl border border-[#E5E7EB] shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-[#E5E7EB] pb-3">
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-[#1B4D2E]" />
+                <FileText className="w-4 h-4 text-[#1B4D2E]" aria-hidden="true" />
                 <h3 className="font-display font-bold text-base text-[#111827]">
                   {isAppTa ? 'நேரலை சேகரிக்கப்படும் விவசாயி விவரங்கள்' : 'Live Data Collection Dossier (Keypad Input)'}
                 </h3>
@@ -517,42 +539,42 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               <div className="p-3 rounded-xl bg-[#F8FAF9] border border-[#E5E7EB]">
-                <span className="text-[11px] text-[#6B7280] block">Language</span>
+                <span className="text-[11px] text-[#4B5563] block">Language</span>
                 <span className="font-bold text-[#111827]">
                   {session?.language === 'ta' ? 'தமிழ் (Tamil)' : session?.language === 'en' ? 'English' : 'Awaiting 1 or 2...'}
                 </span>
               </div>
 
               <div className="p-3 rounded-xl bg-[#F8FAF9] border border-[#E5E7EB]">
-                <span className="text-[11px] text-[#6B7280] block">Need Category</span>
+                <span className="text-[11px] text-[#4B5563] block">Need Category</span>
                 <span className="font-bold text-[#111827]">
                   {session?.collectedSummary?.needTitle || session?.selectedNeed?.toUpperCase() || 'Pending Input...'}
                 </span>
               </div>
 
               <div className="p-3 rounded-xl bg-[#F8FAF9] border border-[#E5E7EB]">
-                <span className="text-[11px] text-[#6B7280] block">Standing Crop</span>
+                <span className="text-[11px] text-[#4B5563] block">Standing Crop</span>
                 <span className="font-bold text-[#111827]">
                   {session?.selectedCrop || 'Pending Input...'}
                 </span>
               </div>
 
               <div className="p-3 rounded-xl bg-[#F8FAF9] border border-[#E5E7EB]">
-                <span className="text-[11px] text-[#6B7280] block">Landholding</span>
+                <span className="text-[11px] text-[#4B5563] block">Landholding</span>
                 <span className="font-bold text-[#111827]">
                   {session?.selectedLandAcres ? `${session.selectedLandAcres} Acres` : 'Pending Input...'}
                 </span>
               </div>
 
               <div className="p-3 rounded-xl bg-[#F8FAF9] border border-[#E5E7EB]">
-                <span className="text-[11px] text-[#6B7280] block">Water Source</span>
+                <span className="text-[11px] text-[#4B5563] block">Water Source</span>
                 <span className="font-bold text-[#111827]">
                   {session?.selectedIrrigation || 'Pending Input...'}
                 </span>
               </div>
 
               <div className="p-3 rounded-xl bg-[#F8FAF9] border border-[#E5E7EB]">
-                <span className="text-[11px] text-[#6B7280] block">Documents Level</span>
+                <span className="text-[11px] text-[#4B5563] block">Documents Level</span>
                 <span className="font-bold text-[#111827]">
                   {session?.collectedSummary
                     ? `${session.collectedSummary.docsReadyCount} Verified Docs`
@@ -565,21 +587,25 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
             <div className="p-3.5 rounded-xl bg-[#F8FAF9] border border-[#E0EBE2] text-xs space-y-2">
               <div className="flex items-center justify-between">
                 <div className="font-bold text-[#14381E] flex items-center gap-1.5">
-                  <Volume2 className="w-4 h-4 text-[#1B4D2E]" />
-                  <span>IVR Voice Prompt Audio (Synthesized via Web Speech):</span>
+                  <Volume2 className="w-4 h-4 text-[#1B4D2E]" aria-hidden="true" />
+                  <span>
+                    IVR Voice Prompt Audio {isSpeaking ? '(Speaking)' : '(Synthesized via Web Speech)'}:
+                  </span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setIsAudioMuted(!isAudioMuted)}
+                  aria-pressed={isAudioMuted}
                   className="text-[11px] text-[#4B5563] hover:text-[#111827] flex items-center gap-1 cursor-pointer"
                 >
                   {isAudioMuted ? (
                     <>
-                      <VolumeX className="w-3.5 h-3.5 text-rose-500" />
+                      <VolumeX className="w-3.5 h-3.5 text-rose-500" aria-hidden="true" />
                       <span>Audio Muted</span>
                     </>
                   ) : (
                     <>
-                      <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
+                      <Volume2 className="w-3.5 h-3.5 text-emerald-600" aria-hidden="true" />
                       <span>Audio Active</span>
                     </>
                   )}
@@ -587,21 +613,21 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
               </div>
 
               <p className="text-[#374151] leading-relaxed italic bg-white p-3 rounded-lg border border-[#E5E7EB]">
-                {session ? (
-                  session.language === 'ta' ? session.ivrAudioPromptTa : session.ivrAudioPromptEn
-                ) : (
-                  'Press the green CALL button on the feature phone to begin the simulated toll-free helpline.'
-                )}
+                {session
+                  ? session.language === 'ta'
+                    ? session.ivrAudioPromptTa
+                    : session.ivrAudioPromptEn
+                  : 'Press the green CALL button on the feature phone to begin the simulated toll-free helpline.'}
               </p>
             </div>
           </div>
 
-          {/* 2. Matched Scheme Card (When calculation completes) */}
+          {/* 2. Matched Scheme Card */}
           {session?.matchedProgram && session.step === 'result' && (
             <div className="bg-[#F0FDF4] p-5 rounded-2xl border-2 border-[#86EFAC] shadow-xs space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
+                  <span className="w-3 h-3 rounded-full bg-emerald-500 animate-ping" aria-hidden="true" />
                   <span className="font-bold text-xs text-[#166534] uppercase tracking-wider">
                     Official Match Found via Telecom Rule Engine
                   </span>
@@ -633,7 +659,7 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
 
               {session.missingDocNames && session.missingDocNames.length > 0 && (
                 <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
                   <div>
                     <span className="font-bold">Pending Document to Obtain: </span>
                     {session.language === 'ta' && session.missingDocNamesTa
@@ -647,15 +673,15 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
           )}
 
           {/* 3. Delivered Government SMS Inbox */}
-          <div className="bg-white p-5 rounded-2xl border border-[#E5E7EB] shadow-xs space-y-4">
+          <div className="bg-white p-5 rounded-2xl border border-[#E5E7EB] shadow-xs space-y-4" aria-live="polite">
             <div className="flex items-center justify-between border-b border-[#E5E7EB] pb-3">
               <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-[#1B4D2E]" />
+                <MessageSquare className="w-4 h-4 text-[#1B4D2E]" aria-hidden="true" />
                 <h3 className="font-display font-bold text-base text-[#111827]">
                   {isAppTa ? 'விவசாயி கைபேசிக்கு அனுப்பப்பட்ட அரசு எஸ்.எம்.எஸ்' : 'Delivered Government SMS Checklist'}
                 </h3>
               </div>
-              <span className="text-xs font-semibold text-[#6B7280]">
+              <span className="text-xs font-semibold text-[#4B5563]">
                 {deliveredSmsList.length} {isAppTa ? 'செய்திகள் வந்துள்ளன' : 'Messages Received'}
               </span>
             </div>
@@ -677,32 +703,32 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
                       <span className="text-[11px] font-semibold">{sms.time}</span>
                     </div>
 
-                    {/* Pre-formatted SMS Content */}
                     <div className="p-3.5 rounded-xl bg-white border border-[#BBF7D0] text-[#14532D] font-mono whitespace-pre-wrap leading-relaxed">
                       {sms.text}
                     </div>
 
-                    {/* Bottom Actions */}
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#BBF7D0]">
                       <div className="flex items-center gap-1.5 text-[11px] text-[#15803D]">
-                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>Actionable checklist with nearest Kendra contact.</span>
                       </div>
 
                       <div className="flex items-center gap-2">
                         <button
+                          type="button"
                           onClick={() => handleCopySms(sms.id, sms.text)}
                           className="px-3 py-1 text-[11px] font-semibold text-[#14532D] bg-[#DCFCE7] hover:bg-[#BBF7D0] rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
                         >
-                          <Copy className="w-3 h-3" />
+                          <Copy className="w-3 h-3" aria-hidden="true" />
                           <span>{copiedId === sms.id ? 'Copied!' : 'Copy SMS'}</span>
                         </button>
 
                         <button
+                          type="button"
                           onClick={() => window.print()}
                           className="px-3 py-1 text-[11px] font-semibold text-[#4B5563] bg-white border border-[#D1D5DB] hover:bg-[#F3F4F6] rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
                         >
-                          <Printer className="w-3 h-3" />
+                          <Printer className="w-3 h-3" aria-hidden="true" />
                           <span>Print Slip</span>
                         </button>
                       </div>
@@ -712,13 +738,13 @@ export const PhoneSimulatorPage: React.FC<PhoneSimulatorPageProps> = ({ language
               </div>
             ) : (
               <div className="p-8 rounded-2xl bg-[#F9FAFB] border border-[#E5E7EB] text-center space-y-2">
-                <MessageSquare className="w-8 h-8 text-[#9CA3AF] mx-auto" />
+                <MessageSquare className="w-8 h-8 text-[#6B7280] mx-auto" aria-hidden="true" />
                 <div className="text-xs font-bold text-[#374151]">
                   {isAppTa
                     ? 'எஸ்.எம்.எஸ் இன்னும் அனுப்பப்படவில்லை'
                     : 'No SMS Messages Dispatched Yet'}
                 </div>
-                <p className="text-[11px] text-[#6B7280] max-w-md mx-auto">
+                <p className="text-[11px] text-[#4B5563] max-w-md mx-auto">
                   {isAppTa
                     ? 'தொலைபேசியில் அழைப்பைத் தொடங்கி, கேள்விகளுக்கு எண்களை (1, 2, 3) அழுத்தி பதிலளிக்கவும். தகுதி நிர்ணயிக்கப்பட்டவுடன் அரசு எஸ்.எம்.எஸ் தானாக இங்கு தோன்றும்.'
                     : 'Start the call using the green CALL button or try a 1-Click Scenario. Answer the farm questions using keypad numbers (1-5) to trigger the automated scheme match and SMS dispatch.'}

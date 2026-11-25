@@ -1,16 +1,11 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Sparkles,
-  FileCheck,
   ArrowRight,
   CheckCircle2,
-  AlertTriangle,
   Building,
-  Coins,
-  ShieldCheck,
   ChevronDown,
-  ChevronUp,
-  RotateCcw
+  ChevronUp
 } from 'lucide-react';
 import { SUPPORT_PROGRAMS } from '../data/mockData';
 import { calculateDocumentUnlocks } from '../services/eligibilityEngine';
@@ -32,11 +27,10 @@ export const DocumentUnlockAdvisory: React.FC<DocumentUnlockAdvisoryProps> = ({
   const isTa = language === 'ta';
   const [expandedDocId, setExpandedDocId] = useState<string | null>(null);
 
-  const opportunities = calculateDocumentUnlocks(farmer, SUPPORT_PROGRAMS);
-  // Focus primarily on documents that actually unlock schemes or are missing
-  const unlockableMissing = opportunities.filter(
-    (op) => op.currentlyMissing && op.unlockedPrograms.length > 0
-  );
+  const unlockableMissing = useMemo(() => {
+    const opportunities = calculateDocumentUnlocks(farmer, SUPPORT_PROGRAMS);
+    return opportunities.filter((op) => op.currentlyMissing && op.unlockedPrograms.length > 0);
+  }, [farmer]);
 
   const handleSimulateAddDoc = (docId: string) => {
     if (!onUpdateFarmerDocs) return;
@@ -64,27 +58,10 @@ export const DocumentUnlockAdvisory: React.FC<DocumentUnlockAdvisoryProps> = ({
     });
   };
 
-  const handleSimulateRemoveDoc = (docId: string) => {
-    if (!onUpdateFarmerDocs) return;
-    const existingIdx = farmer.documents.findIndex((d) => d.documentId === docId);
-    if (existingIdx >= 0) {
-      const updatedDocs = [...farmer.documents];
-      updatedDocs[existingIdx] = {
-        ...updatedDocs[existingIdx],
-        available: false,
-        verifiedStatus: 'missing'
-      };
-      onUpdateFarmerDocs({
-        ...farmer,
-        documents: updatedDocs
-      });
-    }
-  };
-
   if (unlockableMissing.length === 0) {
     return (
       <div className="p-5 rounded-2xl bg-emerald-50/70 border border-emerald-200 text-xs text-emerald-950 flex items-start gap-3">
-        <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+        <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
         <div>
           <div className="font-bold text-sm text-emerald-900">
             {isTa ? 'அனைத்து முக்கிய ஆவணங்களும் தயார் நிலையில் உள்ளன!' : 'Full Document Readiness Achieved!'}
@@ -105,7 +82,7 @@ export const DocumentUnlockAdvisory: React.FC<DocumentUnlockAdvisoryProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E5E7EB] pb-4">
         <div>
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E] text-[11px] font-bold mb-1.5 border border-[#FDE68A]">
-            <Sparkles className="w-3.5 h-3.5 text-[#D97706]" />
+            <Sparkles className="w-3.5 h-3.5 text-[#D97706]" aria-hidden="true" />
             <span>{isTa ? 'ஆவண வாய்ப்பு பகுப்பாய்வு' : 'Document Multiplier Opportunity'}</span>
           </div>
           <h3 className="font-display font-extrabold text-lg sm:text-xl text-[#111827]">
@@ -147,8 +124,8 @@ export const DocumentUnlockAdvisory: React.FC<DocumentUnlockAdvisoryProps> = ({
                       {isTa ? item.document.nameTa : item.document.name}
                     </h4>
                   </div>
-                  <div className="text-xs text-[#6B7280] flex items-center gap-1.5">
-                    <Building className="w-3.5 h-3.5 text-[#9CA3AF]" />
+                  <div className="text-xs text-[#4B5563] flex items-center gap-1.5">
+                    <Building className="w-3.5 h-3.5 text-[#6B7280]" aria-hidden="true" />
                     <span>Authority: {item.issuingAuthority}</span>
                   </div>
                 </div>
@@ -156,21 +133,25 @@ export const DocumentUnlockAdvisory: React.FC<DocumentUnlockAdvisoryProps> = ({
                 <div className="flex items-center gap-2 self-start sm:self-auto">
                   {onUpdateFarmerDocs && (
                     <button
+                      type="button"
                       onClick={() => handleSimulateAddDoc(item.document.id)}
                       className="px-3 py-1.5 text-xs font-bold text-white bg-[#1B4D2E] hover:bg-[#143B23] rounded-lg transition-all shadow-xs flex items-center gap-1 cursor-pointer"
                       title="Simulate obtaining this document to test live eligibility across all schemes"
                     >
-                      <Sparkles className="w-3.5 h-3.5 text-[#86EFAC]" />
+                      <Sparkles className="w-3.5 h-3.5 text-[#86EFAC]" aria-hidden="true" />
                       <span>{isTa ? 'இவ்வாணத்தை பெற்றுவிட்டதாக சோதிக்க' : 'Simulate Adding This Document'}</span>
                     </button>
                   )}
 
                   <button
+                    type="button"
                     onClick={() => setExpandedDocId(isExpanded ? null : item.document.id)}
-                    className="p-1.5 text-xs text-[#6B7280] hover:text-[#111827] rounded-lg border border-[#D1D5DB] bg-white transition-colors"
+                    aria-expanded={isExpanded}
+                    aria-label={isTa ? `${item.document.nameTa} பெறும் வழிகாட்டியை காண்க` : `Toggle how to obtain ${item.document.name}`}
+                    className="p-1.5 text-xs text-[#4B5563] hover:text-[#111827] rounded-lg border border-[#D1D5DB] bg-white transition-colors cursor-pointer"
                     title="Toggle How to Obtain Guide"
                   >
-                    {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    {isExpanded ? <ChevronUp className="w-4 h-4" aria-hidden="true" /> : <ChevronDown className="w-4 h-4" aria-hidden="true" />}
                   </button>
                 </div>
               </div>
@@ -179,7 +160,7 @@ export const DocumentUnlockAdvisory: React.FC<DocumentUnlockAdvisoryProps> = ({
               <div className="p-3.5 rounded-xl bg-[#F0FDF4] border border-[#BBF7D0] space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="font-bold text-xs text-[#166534] flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-[#16A34A]" />
+                    <CheckCircle2 className="w-4 h-4 text-[#16A34A]" aria-hidden="true" />
                     <span>
                       {isTa
                         ? `இவ்வாணத்தைச் சேர்த்தால் திறக்கப்படும் ${totalUnlocked} திட்டங்கள்:`
@@ -212,11 +193,12 @@ export const DocumentUnlockAdvisory: React.FC<DocumentUnlockAdvisoryProps> = ({
                       </p>
                       {onSelectProgram && (
                         <button
+                          type="button"
                           onClick={() => onSelectProgram(program)}
-                          className="text-[11px] font-bold text-[#1B4D2E] hover:underline flex items-center gap-0.5 pt-1"
+                          className="text-[11px] font-bold text-[#1B4D2E] hover:underline flex items-center gap-0.5 pt-1 cursor-pointer"
                         >
                           <span>{isTa ? 'திட்டத்தைப் பார்க்க' : 'View Scheme'}</span>
-                          <ArrowRight className="w-3 h-3" />
+                          <ArrowRight className="w-3 h-3" aria-hidden="true" />
                         </button>
                       )}
                     </div>
@@ -228,7 +210,7 @@ export const DocumentUnlockAdvisory: React.FC<DocumentUnlockAdvisoryProps> = ({
               {isExpanded && (
                 <div className="p-3 rounded-lg bg-amber-50/70 border border-amber-200 text-xs text-amber-950 space-y-1 animate-fadeIn">
                   <div className="font-bold text-[#78350F] flex items-center gap-1">
-                    <Building className="w-3.5 h-3.5 text-[#B45309]" />
+                    <Building className="w-3.5 h-3.5 text-[#B45309]" aria-hidden="true" />
                     <span>{isTa ? 'கிராமத்தில் இதனைப் பெறுவது எப்படி?' : 'Where & How to Obtain in Your Village:'}</span>
                   </div>
                   <p className="text-[11px] text-amber-900 leading-relaxed pl-5">

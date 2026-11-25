@@ -4,12 +4,12 @@ import {
   AlertTriangle,
   Clock,
   Printer,
-  Share2,
   ExternalLink,
   MapPin,
   Building,
   UserCheck
 } from 'lucide-react';
+import { getSafeHttpUrl } from '../utils/farmerUtils';
 import { FarmerProfile, Language, PersonalizedPathway } from '../types';
 
 interface VerticalTimelinePathwayProps {
@@ -150,7 +150,14 @@ export const VerticalTimelinePathway: React.FC<VerticalTimelinePathwayProps> = (
               {pathway.steps.filter((s) => s.status === 'completed').length} / {pathway.steps.length} {isTa ? 'படிகள் தயார்' : 'Steps Ready'}
             </span>
           </div>
-          <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
+          <div
+            className="w-full bg-white/20 h-2 rounded-full overflow-hidden"
+            role="progressbar"
+            aria-label={isTa ? 'செயல் பாதை தயார்நிலை' : 'Application readiness'}
+            aria-valuenow={pathway.readinessPercentage}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
             <div
               className="bg-[#34D399] h-full rounded-full transition-all duration-500"
               style={{ width: `${pathway.readinessPercentage}%` }}
@@ -236,15 +243,15 @@ export const VerticalTimelinePathway: React.FC<VerticalTimelinePathwayProps> = (
                       )}
                     </div>
 
-                    {step.actionUrl && (
+                    {getSafeHttpUrl(step.actionUrl) && (
                       <a
-                        href={step.actionUrl}
+                        href={getSafeHttpUrl(step.actionUrl)}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         className="text-xs font-bold text-[#1B4D2E] hover:underline flex items-center gap-1"
                       >
                         <span>{isTa ? step.actionTextTa || 'இணையதளத்தில் விண்ணப்பிக்க' : step.actionText || 'Open Portal'}</span>
-                        <ExternalLink className="w-3 h-3" />
+                        <ExternalLink className="w-3 h-3" aria-hidden="true" />
                       </a>
                     )}
                   </div>

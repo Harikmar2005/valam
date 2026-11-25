@@ -1,12 +1,12 @@
 import { SUPPORT_PROGRAMS, SYSTEM_DOCUMENTS } from '../data/mockData';
 import { checkEligibility } from './eligibilityEngine';
+import { deriveFarmerCategory } from '../utils/farmerUtils';
 import {
-  FarmerCategory,
+  FarmerDocumentStatus,
   FarmerProfile,
   IrrigationType,
   NeedCategory,
-  PhoneSessionState,
-  SupportProgram
+  PhoneSessionState
 } from '../types';
 
 export function createInitialPhoneSession(callerNumber = '+91 94432 18901'): PhoneSessionState {
@@ -155,17 +155,10 @@ export function processPhoneKeypadInput(
     updated.selectedDocsLevel = docLevel;
 
     const acres = updated.selectedLandAcres || 2.0;
-    const category: FarmerCategory =
-      acres < 2.5
-        ? 'Marginal (<2.5 acres)'
-        : acres <= 5.0
-        ? 'Small (2.5 - 5.0 acres)'
-        : acres <= 10.0
-        ? 'Medium (5.0 - 10.0 acres)'
-        : 'Large (>10.0 acres)';
+    const category = deriveFarmerCategory(acres);
 
     // Build document list based on selection
-    const docList = SYSTEM_DOCUMENTS.map((doc) => {
+    const docList: FarmerDocumentStatus[] = SYSTEM_DOCUMENTS.map((doc) => {
       let isAvailable = false;
       if (docLevel === '3') {
         isAvailable = true; // All docs
@@ -178,7 +171,7 @@ export function processPhoneKeypadInput(
       return {
         documentId: doc.id,
         available: isAvailable,
-        verifiedStatus: (isAvailable ? 'verified' : 'missing') as any,
+        verifiedStatus: isAvailable ? 'verified' : 'missing',
         documentNumber: isAvailable ? `DOC-PH-${Math.floor(1000 + Math.random() * 9000)}` : undefined
       };
     });
